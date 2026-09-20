@@ -60,7 +60,7 @@ three["pivot_lo"] = np.where(
     (three.low.shift(1) < three.low.shift(2)) & (three.low.shift(1) <= three.low),
     three.low.shift(1), np.nan)
 
-idx_by_time = {int(ts.value): i for i, ts in enumerate(three.time_ny)}
+idx_by_time = pd.Series(three.index, index=three["time_ny"]).to_dict()
 one_idx = one.set_index("time_ny")
 
 cand["next_same_extreme_time"] = cand.groupby(["session_id","direction"])["time_ny"].shift(-1)
@@ -74,7 +74,7 @@ def recent_sr_distance(i, direction, price, atr):
     return float(np.min(np.abs(vals-price))/atr)
 
 def find_confirm(c, max_bars):
-    i = idx_by_time.get(int(pd.Timestamp(c.time_ny).value))
+    t = c["time_ny"]\n    if t not in idx_by_time: return None\n    i = idx_by_time[t]
     if i is None: return None
     direction, ticker = c.direction, c.ticker
     ref = c.open
