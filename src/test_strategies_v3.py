@@ -31,9 +31,9 @@ cand = cand.sort_values("time_ny").reset_index(drop=True)
 
 end = three["time_ny"].max()
 start = end - pd.Timedelta(days=LOOKBACK_DAYS)
-one = one[one.time_ny >= start].copy()
-three = three[three.time_ny >= start].copy()
-cand = cand[cand.time_ny >= start].copy()
+one = one[one.time_ny >= start].copy().reset_index(drop=True)
+three = three[three.time_ny >= start].copy().reset_index(drop=True)
+cand = cand[cand.time_ny >= start].copy().reset_index(drop=True)
 # IMPORTANT: next_same_extreme_time must be calculated AFTER the 365-day filter.
 # The saved candidate file already has session IDs; recomputing after filtering avoids stale/index issues.
 split = start + (end - start) * 0.70
