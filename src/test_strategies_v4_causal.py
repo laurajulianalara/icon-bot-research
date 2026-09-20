@@ -163,7 +163,9 @@ def simulate(c, conf, entry_type, rr, stop_buffer):
     direction,ticker=c.direction,c.ticker
     ct=conf["confirm_time"]
     stop=c.extreme-stop_buffer if direction=="LONG" else c.extreme+stop_buffer
-    w=one_idx.loc[ct:ct+pd.Timedelta(minutes=MAX_ENTRY_WAIT_MIN)]
+    # 3-minute bars are left-labeled. A bar stamped ct is complete at ct + 3 minutes.
+    signal_time=ct+pd.Timedelta(minutes=3)
+    w=one_idx.loc[signal_time:signal_time+pd.Timedelta(minutes=MAX_ENTRY_WAIT_MIN)]
     w=w[w.ticker==ticker]
     if w.empty:return None
     if entry_type=="NO_FIB":
