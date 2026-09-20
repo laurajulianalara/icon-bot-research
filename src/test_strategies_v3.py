@@ -65,6 +65,19 @@ one_idx = one.set_index("time_ny")
 
 cand["next_same_extreme_time"] = cand.groupby(["session_id","direction"])["time_ny"].shift(-1)
 
+required_1m = {"time_ny","ticker","open","high","low","close","volume"}
+required_3m = {"time_ny","ticker","open","high","low","close","volume"}
+required_c = {"time_ny","session_id","session","ticker","direction","extreme","open","atr","wick_percent","relative_volume","sweep_distance"}
+for name, frame, required in [("1M", one, required_1m), ("3M", three, required_3m), ("candidates", cand, required_c)]:
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f"{name} data is missing columns: {sorted(missing)}")
+
+timestamp_matches = cand["time_ny"].isin(idx_by_time).sum()
+print("Candidate timestamps matched to 3M:", f"{timestamp_matches:,}/{len(cand):,}")
+if timestamp_matches == 0:
+    raise ValueError("No candidate timestamps match the 3M dataset. Stop before scanning.")
+
 def recent_sr_distance(i, direction, price, atr):
     lo = max(0, i-80)
     hist = three.iloc[lo:i+1]
