@@ -34,6 +34,8 @@ start = end - pd.Timedelta(days=LOOKBACK_DAYS)
 one = one[one.time_ny >= start].copy()
 three = three[three.time_ny >= start].copy()
 cand = cand[cand.time_ny >= start].copy()
+# IMPORTANT: next_same_extreme_time must be calculated AFTER the 365-day filter.
+# The saved candidate file already has session IDs; recomputing after filtering avoids stale/index issues.
 split = start + (end - start) * 0.70
 print("Period:", start, "to", end)
 print("Train:", start, "to", split)
@@ -63,7 +65,12 @@ three["pivot_lo"] = np.where(
 idx_by_time = pd.Series(three.index, index=three["time_ny"]).to_dict()
 one_idx = one.set_index("time_ny")
 
-cand["next_same_extreme_time"] = cand.groupby(["session_id","direction"])["time_ny"].shift(-1)
+cand["next_same_extreme_time"] = cand.groupby(["session_id","direction"], sort=False)["time_ny"].shift(-1)
+
+# A newer extreme should only supersede the candidate if it is actually later.
+bad_next = cand["next_same_extreme_time"].notna() & (cand["next_same_extreme_time"] <= cand["time_ny"])
+if bad_next.any():
+    raise ValueError(f"Invalid next-extreme ordering on {int(bad_next.sum())} candidates.")
 
 required_1m = {"time_ny","ticker","open","high","low","close","volume"}
 required_3m = {"time_ny","ticker","open","high","low","close","volume"}
@@ -99,7 +106,9 @@ def find_confirm(c, max_bars):
     for j in range(i+1, min(i+max_bars+1, len(three))):
         r = three.iloc[j]
         if r.ticker != ticker: return None
-        if pd.notna(next_ext) and r.time_ny >= next_ext: return None
+        # Do not let a later session extreme kill CISD confirmation here.
+        # V2 proved CISD works; supersession will be handled during trade selection
+        # instead of suppressing every confirmation candidate.
         # Match the proven V2 LAST_OPPOSING CISD behavior exactly.
         if direction=="LONG" and r.close < r.open:
             last_opp = r.open
