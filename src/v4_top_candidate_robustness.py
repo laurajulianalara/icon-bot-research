@@ -20,7 +20,8 @@ def stats(x,label):
 
 rows=[]
 # 5 chronological blocks to expose instability hidden by one 70/30 split.
-edges=np.linspace(0, len(z), 6, dtype=int)\nblocks=[z.iloc[edges[i]:edges[i+1]].copy() for i in range(5)]
+edges=np.linspace(0, len(z), 6, dtype=int)
+blocks=[z.iloc[edges[i]:edges[i+1]].copy() for i in range(5)]
 for i,b in enumerate(blocks,1):
     rows.append(stats(b,f"chronological_20pct_{i}"))
 
