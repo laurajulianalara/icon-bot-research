@@ -97,73 +97,67 @@ def find_confirm(c, max_bars):
     t = c["time_ny"]
     if t not in idx_by_time:
         return None
-    i = idx_by_time[t]
-    if i is None: return None
-    direction, ticker = c.direction, c.ticker
-    ref = c.open
-    next_ext = c.next_same_extreme_time
-    last_opp = ref
-    for j in range(i+1, min(i+max_bars+1, len(three))):
+    idx = idx_by_time[t]
+    direction = c["direction"]
+    ticker = c["ticker"]
+    next_extreme = c["next_same_extreme_time"]
+    reference = c["open"]
+
+    for j in range(idx + 1, min(idx + max_bars + 1, len(three))):
         r = three.iloc[j]
-        if r.ticker != ticker: return None
-        # Do not let a later session extreme kill CISD confirmation here.
-        # V2 proved CISD works; supersession will be handled during trade selection
-        # instead of suppressing every confirmation candidate.
-        # Match the proven V2 LAST_OPPOSING CISD behavior exactly.
-        if direction=="LONG" and r.close < r.open:
-            last_opp = r.open
-        elif direction=="SHORT" and r.close > r.open:
-            last_opp = r.open
-        confirmed = (direction=="LONG" and r.close > last_opp) or (direction=="SHORT" and r.close < last_opp)
-        if not confirmed:
-            continue
+        if r["ticker"] != ticker:
+            return None
 
-        leg = three.iloc[i:j+1]
-        if direction=="LONG":
-            leg_end = leg.high.max(); size = leg_end-c.extreme
-        else:
-            leg_end = leg.low.min(); size = c.extreme-leg_end
-        if size<=0: return None
+        # Critical V2 fix: old candidate dies when a newer same-direction
+        # session extreme forms before confirmation.
+        if pd.notna(next_extreme) and r["time_ny"] >= next_extreme:
+            return None
 
-        # Displacement = confirmation body/range relative to ATR.
-        atr = float(r.atr) if pd.notna(r.atr) else np.nan
-        disp_atr = abs(r.close-r.open)/atr if np.isfinite(atr) and atr>0 else 0
-        close_pos = ((r.close-r.low)/(r.high-r.low)) if r.high>r.low else .5
-        if direction=="SHORT": close_pos = 1-close_pos
+        if direction == "LONG" and r["close"] < r["open"]:
+            reference = r["open"]
+        elif direction == "SHORT" and r["close"] > r["open"]:
+            reference = r["open"]
 
-        # FVG formed in reversal direction using only bars known by confirmation.
-        fvg = False
-        fvg_size_atr = 0.0
-        if j>=2 and np.isfinite(atr) and atr>0:
-            a = three.iloc[j-2]
-            if direction=="LONG" and r.low > a.high:
-                fvg=True; fvg_size_atr=(r.low-a.high)/atr
-            if direction=="SHORT" and r.high < a.low:
-                fvg=True; fvg_size_atr=(a.low-r.high)/atr
-
-        # IFVG: an opposing 3-candle FVG created shortly before the extreme,
-        # then closed through in the reversal direction by confirmation.
-        ifvg=False
-        pre = three.iloc[max(2,i-12):i+1]
-        for k in pre.index:
-            if k<2: continue
-            z=three.loc[k]; a=three.loc[k-2]
-            if direction=="LONG" and z.high < a.low:  # bearish FVG
-                zone_hi=a.low
-                if r.close > zone_hi: ifvg=True
-            if direction=="SHORT" and z.low > a.high: # bullish FVG
-                zone_lo=a.high
-                if r.close < zone_lo: ifvg=True
-
-        fibs={}
-        for f in [.500,.618,.705,.786]:
-            fibs[f] = leg_end-size*f if direction=="LONG" else leg_end+size*f
-
-        return dict(confirm_time=r.time_ny, confirm_idx=j, cisd_bars=j-i,
-                    leg_end=leg_end, leg_size=size, disp_atr=disp_atr,
-                    confirm_close_pos=close_pos, fvg=fvg,
-                    fvg_size_atr=fvg_size_atr, ifvg=ifvg, fibs=fibs)
+        confirmed = (
+            (direction == "LONG" and r["close"] > reference)
+            or
+            (direction == "SHORT" and r["close"] < reference)
+        )
+        if confirmed:
+            leg = three.iloc[idx:j + 1]
+            if direction == "LONG":
+                leg_end = leg["high"].max()
+                size = leg_end - c["extreme"]
+                fibs = {k: leg_end - size * k for k in (0.500, 0.618, 0.705, 0.786)}
+            else:
+                leg_end = leg["low"].min()
+                size = c["extreme"] - leg_end
+                fibs = {k: leg_end + size * k for k in (0.500, 0.618, 0.705, 0.786)}
+            if size <= 0:
+                return None
+            atr = float(r["atr"]) if pd.notna(r["atr"]) else np.nan
+            disp_atr = abs(r["close"] - r["open"]) / atr if np.isfinite(atr) and atr > 0 else 0.0
+            close_pos = ((r["close"] - r["low"]) / (r["high"] - r["low"])) if r["high"] > r["low"] else 0.5
+            if direction == "SHORT":
+                close_pos = 1 - close_pos
+            fvg = False
+            fvg_size_atr = 0.0
+            if j >= 2 and np.isfinite(atr) and atr > 0:
+                a = three.iloc[j - 2]
+                if direction == "LONG" and r["low"] > a["high"]:
+                    fvg = True
+                    fvg_size_atr = (r["low"] - a["high"]) / atr
+                elif direction == "SHORT" and r["high"] < a["low"]:
+                    fvg = True
+                    fvg_size_atr = (a["low"] - r["high"]) / atr
+            return {
+                "confirm_time": r["time_ny"], "confirm_idx": j, "cisd_bars": j - idx,
+                "leg_end": leg_end, "leg_size": size, "disp_atr": disp_atr,
+                "confirm_close_pos": close_pos, "fvg": fvg,
+                "fvg_size_atr": fvg_size_atr, "ifvg": False, "fibs": fibs
+            }
     return None
+
 
 def simulate(c, conf, entry_type, rr, stop_buffer):
     direction,ticker=c.direction,c.ticker
