@@ -74,7 +74,10 @@ def recent_sr_distance(i, direction, price, atr):
     return float(np.min(np.abs(vals-price))/atr)
 
 def find_confirm(c, max_bars):
-    t = c["time_ny"]\n    if t not in idx_by_time: return None\n    i = idx_by_time[t]
+    t = c["time_ny"]
+    if t not in idx_by_time:
+        return None
+    i = idx_by_time[t]
     if i is None: return None
     direction, ticker = c.direction, c.ticker
     ref = c.open
