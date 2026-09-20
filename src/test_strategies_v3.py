@@ -100,14 +100,13 @@ def find_confirm(c, max_bars):
         r = three.iloc[j]
         if r.ticker != ticker: return None
         if pd.notna(next_ext) and r.time_ny >= next_ext: return None
-        # Test confirmation against the PRIOR opposing-candle open.
-        # Only update the reference after the current bar fails confirmation.
+        # Match the proven V2 LAST_OPPOSING CISD behavior exactly.
+        if direction=="LONG" and r.close < r.open:
+            last_opp = r.open
+        elif direction=="SHORT" and r.close > r.open:
+            last_opp = r.open
         confirmed = (direction=="LONG" and r.close > last_opp) or (direction=="SHORT" and r.close < last_opp)
         if not confirmed:
-            if direction=="LONG" and r.close < r.open:
-                last_opp = r.open
-            if direction=="SHORT" and r.close > r.open:
-                last_opp = r.open
             continue
 
         leg = three.iloc[i:j+1]
@@ -196,10 +195,15 @@ def simulate(c, conf, entry_type, rr, stop_buffer):
 
 print("\nBuilding reversal-quality feature + trade cache...")
 rows=[]
+diag_matched = 0
+diag_confirmed = 0
+diag_sim_attempts = 0
+diag_sim_success = 0
 for n,(_,c) in enumerate(cand.iterrows(),1):
     if n%1000==0: print(f"Candidate {n:,}/{len(cand):,}")
     i=idx_by_time.get(c.time_ny)
     if i is None:continue
+    diag_matched += 1
     atr=float(c.atr) if pd.notna(c.atr) else np.nan
     sr_dist=recent_sr_distance(i,c.direction,c.extreme,atr)
     sweep_atr=(c.sweep_distance/atr) if np.isfinite(atr) and atr>0 else 0
@@ -211,9 +215,12 @@ for n,(_,c) in enumerate(cand.iterrows(),1):
     for mb in MAX_CONFIRM_BARS:
         conf=find_confirm(c,mb)
         if conf is None:continue
+        diag_confirmed += 1
         for entry,rr,sb in product(ENTRY_TYPES,RR_VALUES,STOP_BUFFERS):
+            diag_sim_attempts += 1
             tr=simulate(c,conf,entry,rr,sb)
             if tr is None:continue
+            diag_sim_success += 1
             rows.append({**tr,
                 "candidate_time":c.time_ny,"session":c.session,"direction":c.direction,
                 "max_cisd_bars":mb,"entry":entry,"rr":rr,"stop_buffer":sb,
@@ -222,6 +229,12 @@ for n,(_,c) in enumerate(cand.iterrows(),1):
                 "disp_atr":conf["disp_atr"],"confirm_close_pos":conf["confirm_close_pos"],
                 "fvg":conf["fvg"],"fvg_size_atr":conf["fvg_size_atr"],"ifvg":conf["ifvg"]})
 cache=pd.DataFrame(rows)
+print("Diagnostic matched candidates:", f"{diag_matched:,}")
+print("Diagnostic CISD confirmations:", f"{diag_confirmed:,}")
+print("Diagnostic simulation attempts:", f"{diag_sim_attempts:,}")
+print("Diagnostic successful simulations:", f"{diag_sim_success:,}")
+if cache.empty:
+    raise RuntimeError("V3 stopped safely: 0 cached trades. Use the diagnostics above to locate the failed stage.")
 cache.to_parquet(FEATURES_OUT,index=False)
 print("Cached trades:",f"{len(cache):,}")
 
