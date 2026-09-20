@@ -100,10 +100,15 @@ def find_confirm(c, max_bars):
         r = three.iloc[j]
         if r.ticker != ticker: return None
         if pd.notna(next_ext) and r.time_ny >= next_ext: return None
-        if direction=="LONG" and r.close < r.open: last_opp = r.open
-        if direction=="SHORT" and r.close > r.open: last_opp = r.open
+        # Test confirmation against the PRIOR opposing-candle open.
+        # Only update the reference after the current bar fails confirmation.
         confirmed = (direction=="LONG" and r.close > last_opp) or (direction=="SHORT" and r.close < last_opp)
-        if not confirmed: continue
+        if not confirmed:
+            if direction=="LONG" and r.close < r.open:
+                last_opp = r.open
+            if direction=="SHORT" and r.close > r.open:
+                last_opp = r.open
+            continue
 
         leg = three.iloc[i:j+1]
         if direction=="LONG":
