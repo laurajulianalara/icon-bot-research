@@ -1,0 +1,11 @@
+import pandas as pd
+b=pd.read_parquet("data/mnq_continuous_1m.parquet")
+print("=== V31 PREFLIGHT ===")
+print("shape",b.shape)
+print("columns",list(b.columns))
+print("index type",type(b.index).__name__)
+print("index name",b.index.name)
+print("index first",b.index[:3].tolist())
+print("\ntrade sample")
+t=pd.read_csv("data/v27_option2a_trades.csv")
+print(t[["candidate_time","direction","entry","risk","outcome"]].head(5).to_string(index=False))
