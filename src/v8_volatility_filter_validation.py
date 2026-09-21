@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 
 IN="data/v8_volatility_forensics.csv"; OUT="data/v8_volatility_filter_validation.csv"
-q=pd.read_csv(IN);q["candidate_time"]=pd.to_datetime(q.candidate_time)
+q=pd.read_csv(IN)
+# CSV contains mixed DST offsets (-04:00/-05:00). Normalize to UTC so pandas 3.x parses safely.
+q["candidate_time"]=pd.to_datetime(q["candidate_time"],utc=True)
 q["win"]=(q.outcome=="WIN").astype(int);q["r"]=np.where(q.win==1,4.,-1.)
 
-# Test only the volatility exclusions suggested by the forensic result.
 tests={
 "BASE":pd.Series(True,index=q.index),
 "REMOVE_ASIA_LOWEST20":~((q.session=="ASIA")&(q.vol_bin=="LOWEST20")),
@@ -18,6 +19,7 @@ def met(z):
  for w in z.win:
   cur=0 if w else cur+1;mx=max(mx,cur)
  return len(z),len(z)/365,100*z.win.mean(),z.r.sum(),z.r.mean(),dd,mx
+
 cut=q.candidate_time.min()+(q.candidate_time.max()-q.candidate_time.min())*.70
 rows=[]
 for name,mask in tests.items():
