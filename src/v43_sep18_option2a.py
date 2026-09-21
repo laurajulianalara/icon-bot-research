@@ -29,7 +29,7 @@ for session,gg in g.groupby("session",sort=False):
         if r.low<rl: cands.append(dict(time_ny=r.time_ny,session=session,direction="LONG",ticker=r.ticker,extreme=float(r.low),wick_percent=float(r.lower_wick/rng) if rng>0 else 0))
         if r.high>rh: cands.append(dict(time_ny=r.time_ny,session=session,direction="SHORT",ticker=r.ticker,extreme=float(r.high),wick_percent=float(r.upper_wick/rng) if rng>0 else 0))
         rh=max(rh,float(r.high)); rl=min(rl,float(r.low))
-if cand.empty: print("NO LONDON CANDIDATES"); raise SystemExit
+cand=pd.DataFrame(cands)\nif cand.empty: print("NO SEPT 18 CANDIDATES"); raise SystemExit\ncand=cand.sort_values("time_ny").reset_index(drop=True)
 cand["next_same_extreme_time"]=cand.groupby(["session","direction"]).time_ny.shift(-1)
 idx1=pd.Series(one.index,index=one.time_ny).to_dict(); rows=[]
 for _,c in cand.iterrows():
