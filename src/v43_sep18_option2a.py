@@ -2,7 +2,14 @@ import pandas as pd
 import numpy as np
 TODAY="data/mnq_all_contracts.parquet"; HIST="data/mnq_continuous_1m.parquet"
 DATE=pd.Timestamp("2026-09-18").date(); RTH=0.576132; WTH=0.183258
-h=pd.read_parquet(HIST); t=pd.read_parquet(TODAY)\n# Use the raw current-contract data for Sep 18; the locked continuous file ends Sep 17.\nt=t[pd.to_datetime(t["time_ny"]).dt.date==DATE].copy()\nif t.empty:\n    print("NO SEP 18 RAW DATA AVAILABLE")\n    raise SystemExit
+h=pd.read_parquet(HIST)
+t=pd.read_parquet(TODAY)
+# Use raw current-contract data for Sep 18; locked continuous history ends Sep 17.
+t["time_ny"]=pd.to_datetime(t["time_ny"])
+t=t[t["time_ny"].dt.date==DATE].copy()
+if t.empty:
+    print("NO SEP 18 RAW DATA AVAILABLE")
+    raise SystemExit
 for x in (h,t): x["time_ny"]=pd.to_datetime(x["time_ny"])
 need=["time_ny","ticker","open","high","low","close","volume"]
 one=pd.concat([h[need][h.time_ny<t.time_ny.min()].tail(300),t[need]],ignore_index=True).drop_duplicates("time_ny",keep="last").sort_values("time_ny").reset_index(drop=True)
