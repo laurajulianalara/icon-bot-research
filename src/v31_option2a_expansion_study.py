@@ -3,7 +3,7 @@ tr=pd.read_csv("data/v27_option2a_trades.csv")
 bars=pd.read_parquet("data/mnq_continuous_1m.parquet")
 tr["candidate_time"]=pd.to_datetime(tr["candidate_time"],utc=True)
 
-tc=next((c for c in ["timestamp","time","datetime","date"] if c in bars.columns),None)
+tc=next((c for c in ["time_utc","timestamp","time","datetime","date"] if c in bars.columns),None)
 if tc is None:
     bars.index=pd.to_datetime(bars.index,utc=True); bars=bars.sort_index()
 else:
