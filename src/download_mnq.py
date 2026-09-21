@@ -15,7 +15,7 @@ CONTRACT_FILE = "data/mnq_contracts.parquet"
 OUTPUT_FILE = "data/mnq_all_contracts.parquet"
 
 RESEARCH_START = pd.Timestamp("2024-06-10")
-RESEARCH_END = pd.Timestamp("2026-09-18")
+RESEARCH_END = pd.Timestamp("2026-09-21")
 
 REQUEST_DELAY = 13  # stays under free 5 calls/minute limit
 
