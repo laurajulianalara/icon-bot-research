@@ -20,7 +20,7 @@ m=z.groupby("month").apply(lambda x:pd.Series({"trades":len(x),"wr":100*x.win.me
 print(m.round(2).to_string())
 # 10 chronological folds
 print("\n10-FOLD")
-parts=np.array_split(z,10)
+parts=[z.loc[idx].copy() for idx in np.array_split(z.index.to_numpy(),10)]
 for i,x in enumerate(parts,1):print(f"{i:2d}: {len(x):3d} trades | WR {100*x.win.mean():5.2f}% | net {x.r.sum():6.0f}R | DD {maxdd(x):.0f}R | streak {streak(x)}")
 # daily risk
 d=z.groupby("date").apply(lambda x:pd.Series({"trades":len(x),"wins":x.win.sum(),"losses":(1-x.win).sum(),"net_r":x.r.sum(),"dd_r":maxdd(x)}),include_groups=False)
