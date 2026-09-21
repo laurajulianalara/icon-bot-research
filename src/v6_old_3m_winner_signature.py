@@ -1,20 +1,29 @@
 import pandas as pd
 import numpy as np
 
-OLD="data/v3_4r_reversal_diagnostic.csv"
+OLD="data/v3_reversal_features.parquet"
 ONE="data/mnq_continuous_1m.parquet"
 OUT="data/v6_old_winner_early_signature.csv"
 
-old=pd.read_csv(OLD)
-# Preserve only old NO_FIB 4R rows if columns exist; de-duplicate candidates.
-if "rr" in old: old=old[old.rr==4]
-if "entry_mode" in old: old=old[old.entry_mode=="NO_FIB"]
-elif "method" in old: old=old[old.method=="NO_FIB"]
-timecol="candidate_time" if "candidate_time" in old else ("time_ny" if "time_ny" in old else None)
-if timecol is None: raise RuntimeError("Could not find candidate timestamp column in old diagnostic.")
-old[timecol]=pd.to_datetime(old[timecol])
-keys=[timecol]+([c for c in ["session","direction"] if c in old.columns])
-old=old.drop_duplicates(keys)
+old=pd.read_parquet(OLD)
+# Rebuild the exact old pre-causal A+ candidate set from the detailed V3 cache.
+rules={
+ "ASIA":dict(cisd=.95,disp=1.20,sweep=.20),
+ "NYAM":dict(cisd=.95,disp=1.20,sweep=.20),
+ "LONDON":dict(cisd=.96,disp=1.20,sweep=.20),
+ "NYPM":dict(cisd=.97,disp=1.10,sweep=None),
+}
+old=old[(old.rr==4.0)&(old.max_cisd_bars==5)&(old.entry=="NO_FIB")&old.outcome.isin(["WIN","LOSS"])].copy()
+parts=[]
+for s,r in rules.items():
+    q=old[old.session==s].copy()
+    q=q[(q.confirm_close_pos>=r["cisd"])&(q.disp_atr>=r["disp"])]
+    if r["sweep"] is not None:q=q[q.sweep_atr>=r["sweep"]]
+    parts.append(q)
+old=pd.concat(parts).sort_values("fill_time")
+old["candidate_time"]=pd.to_datetime(old.candidate_time)
+old=old.drop_duplicates(["candidate_time","session","direction"],keep="first")
+timecol="candidate_time"
 
 one=pd.read_parquet(ONE);one["time_ny"]=pd.to_datetime(one.time_ny);one=one.sort_values("time_ny").reset_index(drop=True)
 one["atr1"]=pd.concat([one.high-one.low,(one.high-one.close.shift()).abs(),(one.low-one.close.shift()).abs()],axis=1).max(axis=1).rolling(20).mean()
