@@ -1,7 +1,7 @@
 import pandas as pd, numpy as np
 q=pd.read_csv("data/v11_reversal_state_forensics.csv")
 q["candidate_time"]=pd.to_datetime(q.candidate_time,utc=True);q=q.sort_values("candidate_time")
-q["win"]=(q.outcome=="WIN").astype(int);q["r"]=np.where(q.win==1,4.,-1.)
+q["win"]=(q.outcome=="WIN").astype(int);q["r"]=np.where(q.win==1,4.,-1.)\n# Rebuild V12 causal interaction features from base columns\neps=.05\nq["reclaim_x_wick"]=q.early_reclaim_atr*q.wick_percent\nq["close_x_reclaim"]=q.m2_close_pos*q.early_reclaim_atr\nq["sweep_minus_reclaim"]=q.sweep_atr-q.early_reclaim_atr\nq["impulse_minus_reclaim"]=q.reversal_impulse-q.early_reclaim_atr\nq["quality_balance"]=q.rejection_quality*q.impulse_to_reclaim/(1+q.reclaim_to_sweep)
 cut=q.candidate_time.min()+(q.candidate_time.max()-q.candidate_time.min())*.70
 def stats(z):
  z=z.sort_values("candidate_time").copy()
