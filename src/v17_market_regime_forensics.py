@@ -5,7 +5,7 @@ tr=tr.sort_values("candidate_time").reset_index(drop=True)
 tr["win"]=(tr.outcome=="WIN").astype(int)
 raw=pd.read_parquet("data/mnq_continuous_1m.parquet").copy()
 # detect timestamp column
-tc=next((c for c in ["timestamp","time","datetime","date"] if c in raw.columns),None)
+tc=next((c for c in ["time_utc","timestamp","time","datetime","date"] if c in raw.columns),None)
 if tc is None: raise ValueError(f"No timestamp column. Columns: {list(raw.columns)}")
 raw[tc]=pd.to_datetime(raw[tc],utc=True)
 raw=raw.sort_values(tc).set_index(tc)
