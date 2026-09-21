@@ -21,7 +21,8 @@ def apply_rule(z,rule):
 
 rows=[]
 # 5 chronological folds: rule must survive every slice, not just 3 coarse buckets.
-idx_folds=np.array_split(np.arange(len(d)),5)\nfolds=[d.iloc[idx].copy() for idx in idx_folds]
+idx_folds=np.array_split(np.arange(len(d)),5)
+folds=[d.iloc[idx].copy() for idx in idx_folds]
 for _,x in r.iterrows():
     stats=[]; ok=True
     for k,z in enumerate(folds,1):
