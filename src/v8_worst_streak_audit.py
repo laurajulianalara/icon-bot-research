@@ -28,7 +28,7 @@ for n,(a,b,L) in enumerate(worst,1):
     print(z.groupby("ny_date").size().to_string())
     print("By session:")
     print(z.groupby("session").size().to_string())
-    cols=["ny_time","session","vol_bin","atr20","early_reclaim_atr","wick_percent","m2_close_pos","m2_move_atr","m2_dir_bars5","sr_strength","sweep_atr"]
+    cols=["ny_time","session","vol_bin","atr20","early_reclaim_atr","wick_percent","m2_close_pos","m2_move_atr","m2_dir_bars5","sweep_atr"]
     print("\nTrades:")
     print(z[cols].round(3).to_string(index=False))
     allrows.append(z)
@@ -37,7 +37,7 @@ w=pd.concat(allrows,ignore_index=True);w.to_csv(OUT,index=False)
 
 # Compare the exact worst streak against winners and all other losses.
 print("\n=== WORST-STREAK SIGNATURE VS WINNERS ===")
-features=["early_reclaim_atr","wick_percent","m2_close_pos","m2_move_atr","m2_dir_bars5","atr20","vol_ratio_20_60","vol_ratio_20_240","range_ratio","sr_strength","sweep_atr"]
+features=["early_reclaim_atr","wick_percent","m2_close_pos","m2_move_atr","m2_dir_bars5","atr20","vol_ratio_20_60","vol_ratio_20_240","range_ratio","sweep_atr"]
 for f in features:
     a=w[f].mean(); b=q.loc[q.win.eq(1),f].mean()
     print(f"{f:20s} worst={a:.3f} winners={b:.3f} diff={a-b:+.3f}")
