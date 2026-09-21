@@ -77,4 +77,4 @@ w4=int((r.max_rr>=4).sum()); l4=len(r)-w4; net=w4*4-l4
 print(f"\n4R: {w4}W / {l4}L | Net: {net:+.0f}R | at 250 risk: {net*250:+,.0f} USD")
 print(f"Average max RR: {r.max_rr.mean():.2f}R | Median: {r.max_rr.median():.2f}R | Highest: {r.max_rr.max():.2f}R")
 r.to_csv("data/sep18_option2a.csv",index=False)
-print("Saved: data/sep21_london_option2a.csv")
+print("Saved: data/sep18_option2a.csv")
