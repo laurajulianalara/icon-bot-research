@@ -11,15 +11,24 @@ z=one.set_index("time_ny")
 three=z.resample("3min",label="left",closed="left").agg(ticker=("ticker","last"),open=("open","first"),high=("high","max"),low=("low","min"),close=("close","last"),volume=("volume","sum")).dropna(subset=["open","high","low","close"]).reset_index()
 three["atr"]=pd.concat([three.high-three.low,(three.high-three.close.shift()).abs(),(three.low-three.close.shift()).abs()],axis=1).max(axis=1).rolling(20).mean()
 three["upper_wick"]=three.high-three[["open","close"]].max(axis=1); three["lower_wick"]=three[["open","close"]].min(axis=1)-three.low
-mins=three.time_ny.dt.hour*60+three.time_ny.dt.minute\nsm=((mins>=120)&(mins<300))|((mins>=570)&(mins<750))|((mins>=810)&(mins<1020))\ng=three[(three.time_ny.dt.date==DATE)&sm].copy()\ndef sess(ts):\n    m=ts.hour*60+ts.minute\n    return "LONDON" if 120<=m<300 else ("NYAM" if 570<=m<750 else "NYPM")\ng["session"]=g.time_ny.apply(sess)\ng=g.reset_index(drop=True)
-cands=[]; rh=rl=None
-for _,r in g.iterrows():
-    if rh is None: rh=float(r.high); rl=float(r.low); continue
-    rng=float(r.high-r.low)
-    if r.low<rl: cands.append(dict(time_ny=r.time_ny,session=session,direction="LONG",ticker=r.ticker,extreme=float(r.low),wick_percent=float(r.lower_wick/rng) if rng>0 else 0))
-    if r.high>rh: cands.append(dict(time_ny=r.time_ny,session=session,direction="SHORT",ticker=r.ticker,extreme=float(r.high),wick_percent=float(r.upper_wick/rng) if rng>0 else 0))
-    rh=max(rh,float(r.high)); rl=min(rl,float(r.low))
-cand=pd.DataFrame(cands).sort_values("time_ny").reset_index(drop=True)
+mins=three.time_ny.dt.hour*60+three.time_ny.dt.minute
+sm=((mins>=120)&(mins<300))|((mins>=570)&(mins<750))|((mins>=810)&(mins<1020))
+g=three[(three.time_ny.dt.date==DATE)&sm].copy()
+def sess(ts):
+    m=ts.hour*60+ts.minute
+    return "LONDON" if 120<=m<300 else ("NYAM" if 570<=m<750 else "NYPM")
+g["session"]=g.time_ny.apply(sess)
+g=g.reset_index(drop=True)
+cands=[]
+for session,gg in g.groupby("session",sort=False):
+    rh=rl=None
+    for _,r in gg.iterrows():
+        if rh is None:
+            rh=float(r.high); rl=float(r.low); continue
+        rng=float(r.high-r.low)
+        if r.low<rl: cands.append(dict(time_ny=r.time_ny,session=session,direction="LONG",ticker=r.ticker,extreme=float(r.low),wick_percent=float(r.lower_wick/rng) if rng>0 else 0))
+        if r.high>rh: cands.append(dict(time_ny=r.time_ny,session=session,direction="SHORT",ticker=r.ticker,extreme=float(r.high),wick_percent=float(r.upper_wick/rng) if rng>0 else 0))
+        rh=max(rh,float(r.high)); rl=min(rl,float(r.low))
 if cand.empty: print("NO LONDON CANDIDATES"); raise SystemExit
 cand["next_same_extreme_time"]=cand.groupby(["session","direction"]).time_ny.shift(-1)
 idx1=pd.Series(one.index,index=one.time_ny).to_dict(); rows=[]
