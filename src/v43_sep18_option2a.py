@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
-TODAY="data/mnq_all_contracts.parquet"; HIST="data/mnq_continuous_1m.parquet"
+TODAY="data/mnq_sep18_2026_1m.parquet"; HIST="data/mnq_continuous_1m.parquet"
 DATE=pd.Timestamp("2026-09-18").date(); RTH=0.576132; WTH=0.183258
 h=pd.read_parquet(HIST)
 t=pd.read_parquet(TODAY)
-# Use raw current-contract data for Sep 18; locked continuous history ends Sep 17.
+# Use dedicated Sep 18 MNQZ6 data; locked continuous history ends Sep 17.
 t["time_ny"]=pd.to_datetime(t["time_ny"])
 t=t[t["time_ny"].dt.date==DATE].copy()
 if t.empty:
