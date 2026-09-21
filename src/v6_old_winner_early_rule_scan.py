@@ -5,7 +5,7 @@ from itertools import product
 IN="data/v6_old_winner_early_signature.csv"; OUT="data/v6_old_winner_early_rules.csv"
 d=pd.read_csv(IN)
 # First 60% discovery, next 20% validation, final 20% untouched test.
-d["candidate_time"]=pd.to_datetime(d.candidate_time);d=d.sort_values("candidate_time").reset_index(drop=True)
+d["candidate_time"]=pd.to_datetime(d.candidate_time, utc=True);d=d.sort_values("candidate_time").reset_index(drop=True)
 n=len(d); a=d.iloc[:int(n*.60)]; b=d.iloc[int(n*.60):int(n*.80)]; c=d.iloc[int(n*.80):]
 features=["m1_body_atr","m1_move_atr","m1_close_pos","m1_dir_bars5",
 "m2_body_atr","m2_move_atr","m2_close_pos","m2_dir_bars5",
