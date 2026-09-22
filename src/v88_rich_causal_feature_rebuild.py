@@ -13,7 +13,11 @@ def timecol(d):
     raise RuntimeError("No time column")
 ct=timecol(cand); mt=timecol(m1)
 cand["_t"]=pd.to_datetime(cand[ct],utc=True,errors="coerce")
-m1["_t"]=pd.to_datetime(m1[mt],errors="coerce")\nif m1["_t"].dt.tz is None:\n    m1["_t"]=m1["_t"].dt.tz_localize("America/New_York",ambiguous="infer",nonexistent="shift_forward").dt.tz_convert("UTC")\nelse:\n    m1["_t"]=m1["_t"].dt.tz_convert("UTC")
+m1["_t"]=pd.to_datetime(m1[mt],errors="coerce")
+if m1["_t"].dt.tz is None:
+    m1["_t"]=m1["_t"].dt.tz_localize("America/New_York",ambiguous="infer",nonexistent="shift_forward").dt.tz_convert("UTC")
+else:
+    m1["_t"]=m1["_t"].dt.tz_convert("UTC")
 m1=m1.sort_values("_t").set_index("_t")
 for c in ["open","high","low","close"]:
     if c not in m1: raise RuntimeError(f"Missing {c}")
