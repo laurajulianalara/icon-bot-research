@@ -4,21 +4,24 @@ import numpy as np
 A=pd.read_csv("data/v56_icon_bot_funded_prior_year_trades.csv")
 B=pd.read_csv("data/v27_option2a_trades.csv")
 one=pd.read_parquet("data/mnq_continuous_1m.parquet").sort_values("time_ny").reset_index(drop=True)
-one["time_ny"]=pd.to_datetime(one.time_ny)
-idx=pd.Series(one.index,index=one.time_ny).to_dict()
 
-def norm_time(s):
-    return pd.to_datetime(s)
+# Normalize EVERYTHING to UTC so DST/mixed ET offsets cannot break matching.
+def utc_time(s):
+    return pd.to_datetime(s, utc=True, errors="coerce")
 
-A["t"]=norm_time(A.candidate_time)
-B["t"]=norm_time(B.candidate_time)
+one["t_utc"]=utc_time(one.time_ny)
+idx=pd.Series(one.index,index=one.t_utc).to_dict()
+A["t"]=utc_time(A.candidate_time)
+B["t"]=utc_time(B.candidate_time)
 
 def rescore(df,label):
     counts={r:[0,0,0] for r in range(1,7)}
     missing=0
     for _,x in df.iterrows():
         i=idx.get(x.t)
-        if i is None or i+3>=len(one): missing+=1; continue
+        if i is None or i+3>=len(one):
+            missing+=1
+            continue
         j=i+3
         entry=float(x.entry); risk=float(x.risk)
         if not np.isfinite(risk) or risk<=0: continue
@@ -44,8 +47,8 @@ def rescore(df,label):
     return counts
 
 print("=== V75 EXACT BENCHMARK POPULATION VERIFICATION ===")
-print("Prior-year reference:",len(A),"unique timestamps:",A.t.nunique())
-print("Original reference:",len(B),"unique timestamps:",B.t.nunique())
+print("Prior-year reference:",len(A),"unique timestamps:",A.t.nunique(),"invalid timestamps:",A.t.isna().sum())
+print("Original reference:",len(B),"unique timestamps:",B.t.nunique(),"invalid timestamps:",B.t.isna().sum())
 rescore(A,"2024-2025 reference")
 rescore(B,"2025-2026 reference")
 print("\nIMPORTANT: This script verifies identity/outcomes only. It does NOT claim the selection rule was causal.")
