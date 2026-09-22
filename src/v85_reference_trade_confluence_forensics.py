@@ -74,7 +74,9 @@ if len(pairs):
         b=pd.to_numeric(pairs["rejected_"+f],errors="coerce")
         ok=a.notna()&b.notna()
         if ok.sum()<30: continue
-        av=a[ok].astype(float).to_numpy()\n        bv=b[ok].astype(float).to_numpy()\n        delta=pd.Series(av-bv)
+        av=a[ok].astype(float).to_numpy()
+        bv=b[ok].astype(float).to_numpy()
+        delta=pd.Series(av-bv)
         scale=pd.concat([a[ok],b[ok]]).std()
         comp.append({"feature":f,"pairs":int(ok.sum()),"selected_median":a[ok].median(),
                      "rejected_median":b[ok].median(),"median_delta":delta.median(),
