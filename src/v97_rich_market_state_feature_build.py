@@ -21,7 +21,7 @@ for q,r in base.iterrows():
  j=int(j); a=atr[j] if np.isfinite(atr[j]) and atr[j]>0 else 1.0
  direction=str(r.get("direction","")).upper(); s=1 if direction=="LONG" else -1
  z={"_t":t}
- for w in [3,5,10,15,30,60]:
+ for w in [3,5,10,15,20,30,60]:
   lo=j-w+1; op=O[lo]; cl=C[j]
   z[f"path_return_{w}_atr"]=s*(cl-op)/a
   z[f"path_range_{w}_atr"]=(np.max(H[lo:j+1])-np.min(L[lo:j+1]))/a
