@@ -62,7 +62,7 @@ for d,g in alltr.groupby("date"):
         w=int((g.max_rr>=rr).sum()); l=len(g)-w
         wr=100*w/len(g)
         pnl=w*(rr*RISK_DOLLARS)-l*RISK_DOLLARS
-        parts.append(f"{w}W/{l}L {wr:5.1f}% {pnl:+$,.0f}")
+        parts.append(f"{w}W/{l}L {wr:5.1f}% ${pnl:+,.0f}")
     print(f"{pd.Timestamp(d).strftime('%b %d'):<12}{len(g):>7}  " + "".join(f"{p:<25}" for p in parts))
 
 print("-"*120)
