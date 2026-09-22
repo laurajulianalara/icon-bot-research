@@ -58,7 +58,7 @@ print("-"*120)
 
 for d,g in alltr.groupby("date"):
     parts=[]
-    for rr in range(1,5):
+    for rr in range(1,7):
         w=int((g.max_rr>=rr).sum()); l=len(g)-w
         wr=100*w/len(g)
         pnl=w*(rr*RISK_DOLLARS)-l*RISK_DOLLARS
@@ -67,7 +67,7 @@ for d,g in alltr.groupby("date"):
 
 print("-"*120)
 print(f"TOTAL TRADES: {len(alltr)}")
-for rr in range(1,5):
+for rr in range(1,7):
     w=int((alltr.max_rr>=rr).sum()); l=len(alltr)-w
     wr=100*w/len(alltr)
     pnl=w*(rr*RISK_DOLLARS)-l*RISK_DOLLARS
