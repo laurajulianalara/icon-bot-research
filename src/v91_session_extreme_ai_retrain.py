@@ -48,12 +48,13 @@ for name,m in models.items():
     print(f"{name:20s} th={th:.2f} | FINAL acc {accuracy_score(y.iloc[b:],pred)*100:.2f}% | balanced {bal*100:.2f}% | AUC {roc_auc_score(y.iloc[b:],pt):.4f}")
     if best is None or bal>best[0]: best=(bal,name,th,p)
 bal,name,th,p=best
-print(f"
-BEST V91: {name} | balanced {bal*100:.2f}%")
+print()
+print(f"BEST V91: {name} | balanced {bal*100:.2f}%")
 print(f"CHANGE VS V89 73.39%: {(bal-.7339)*100:+.2f} percentage points")
 if hasattr(p[-1],"feature_importances_"):
     fi=pd.Series(p[-1].feature_importances_,index=features).sort_values(ascending=False)
-    print("
-TOP PREDICTORS"); print(fi.head(25).to_string())
-print("
-NEXT: use V91 result to decide whether to deepen structure features or move to sequential RR simulation.")
+    print()
+    print("TOP PREDICTORS")
+    print(fi.head(25).to_string())
+print()
+print("NEXT: use V91 result to decide whether to deepen structure features or move to sequential RR simulation.")
