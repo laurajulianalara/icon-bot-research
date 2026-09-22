@@ -5,7 +5,7 @@ TRADES="data/v56_icon_bot_funded_prior_year_trades.csv"
 OUT="data/v57_prior_year_monthly_rr_1_to_6.csv"
 RRS=range(1,7); RISK=300
 one=pd.read_parquet(ONE);cand=pd.read_parquet(CAND);z=pd.read_csv(TRADES)
-one["time_ny"]=pd.to_datetime(one.time_ny);cand["time_ny"]=pd.to_datetime(cand.time_ny);z["candidate_time"]=pd.to_datetime(z.candidate_time)
+one["time_ny"]=pd.to_datetime(one.time_ny);cand["time_ny"]=pd.to_datetime(cand.time_ny);z["candidate_time"]=pd.to_datetime(z.candidate_time,utc=True)
 one=one.sort_values("time_ny").reset_index(drop=True);cand=cand.sort_values("time_ny").drop_duplicates(["time_ny","session","direction"]).reset_index(drop=True)
 cand["next_same_extreme_time"]=cand.groupby(["session_id","direction"],sort=False).time_ny.shift(-1)
 idx=pd.Series(one.index,index=one.time_ny).to_dict();cm={(r.time_ny,str(r.direction)):r for _,r in cand.iterrows()}
