@@ -5,10 +5,10 @@ from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassif
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
 print("=== V91 SESSION-EXTREME AI RETRAIN ===")
-d=pd.read_parquet("data/v90_session_extreme_structure_features.parquet").copy()
+d=pd.read_parquet("data/v90_session_extreme_structure_features.parquet").copy()\nlabels=pd.read_parquet("data/v81_ai_wait_enter_dataset.parquet").copy()
 tc=next(c for c in ["candidate_time","t_utc","time","candidate_time_et"] if c in d.columns)
 d[tc]=pd.to_datetime(d[tc],utc=True,errors="coerce")
-d=d.dropna(subset=[tc]).sort_values(tc).reset_index(drop=True)
+d=d.dropna(subset=[tc]).sort_values(tc).reset_index(drop=True)\nlt=next(c for c in ["candidate_time","t_utc","time","candidate_time_et"] if c in labels.columns)\nlabels["_label_time"]=pd.to_datetime(labels[lt],utc=True,errors="coerce")\njoin_keys=[]\nd["_label_time"]=d[tc]\njoin_keys=["_label_time"]\nfor k in ["direction","extreme"]:\n    if k in d.columns and k in labels.columns: join_keys.append(k)\nlab=labels[join_keys+["ai_wait","ai_enter"]].drop_duplicates(join_keys)\nd=d.merge(lab,on=join_keys,how="left")\nprint("AI labels matched:",f"{d.ai_wait.notna().mean()*100:.2f}%")\nd=d.dropna(subset=["ai_wait"]).reset_index(drop=True)
 
 new=["reject_2m_atr","best_reject_2m_atr","reversal_closes_3","session_range_before_atr",
 "extreme_from_session_open_atr","micro_cisd_break_atr","micro_cisd_confirm","finished_pressure"]
