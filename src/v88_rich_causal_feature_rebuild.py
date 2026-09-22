@@ -6,14 +6,14 @@ cand=pd.read_parquet("data/v68_full_causal_feature_table.parquet").copy()
 m1=pd.read_parquet("data/mnq_continuous_1m.parquet").copy()
 
 def timecol(d):
-    for c in ["candidate_time","time","timestamp","datetime","date"]:
+    for c in ["candidate_time","time_ny","time","timestamp","datetime","date"]:
         if c in d.columns: return c
     if isinstance(d.index,pd.DatetimeIndex):
         d["_idx_time"]=d.index; return "_idx_time"
     raise RuntimeError("No time column")
 ct=timecol(cand); mt=timecol(m1)
 cand["_t"]=pd.to_datetime(cand[ct],utc=True,errors="coerce")
-m1["_t"]=pd.to_datetime(m1[mt],utc=True,errors="coerce")
+m1["_t"]=pd.to_datetime(m1[mt],errors="coerce")\nif m1["_t"].dt.tz is None:\n    m1["_t"]=m1["_t"].dt.tz_localize("America/New_York",ambiguous="infer",nonexistent="shift_forward").dt.tz_convert("UTC")\nelse:\n    m1["_t"]=m1["_t"].dt.tz_convert("UTC")
 m1=m1.sort_values("_t").set_index("_t")
 for c in ["open","high","low","close"]:
     if c not in m1: raise RuntimeError(f"Missing {c}")
