@@ -54,17 +54,17 @@ old = """                                bool v27 = not (reclaim >= V27_RTH and 
 """
 new = """                                bool v27 = not (reclaim >= V27_RTH and reclaimXWick >= V27_WTH)
                                 if v27 and time >= AUDIT_START and time < AUDIT_END
-                                    auditSelected += 1
+                                    auditSelectedL += 1
                                     int auditD = isLong ? 1 : -1
                                     bool auditFound = false
                                     for auditI = 0 to 49
                                         if not array.get(auditMatched, auditI) and array.get(auditTimes, auditI) == time and array.get(auditDirs, auditI) == auditD
                                             array.set(auditMatched, auditI, true)
-                                            auditMatchedCount += 1
+                                            auditMatchedL += 1
                                             auditFound := true
                                             break
                                     if not auditFound
-                                        auditExtra += 1
+                                        auditExtraL += 1
                                 if v27 and strategy.position_size == 0 and not orderPendingL
 """
 if old not in pine:
