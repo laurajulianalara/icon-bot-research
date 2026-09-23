@@ -32,6 +32,26 @@ dirs = ",".join("1" if x == "LONG" else "-1" for x in df.direction)
 
 pine = BASE.read_text()
 
+# First change the candidate helper itself so audit state is ordinary local
+# function state. The diagnostic injection below then updates only these locals.
+sig_old = "f_eval_candidate(int v15N, float hiRun, float loRun, float pStop, bool pLong, string pSess, bool pOrder) =>\n    int v15CountTodayL = v15N"
+sig_new = "f_eval_candidate(int v15N, float hiRun, float loRun, float pStop, bool pLong, string pSess, bool pOrder, int auditSelectedIn, int auditMatchedIn, int auditExtraIn) =>\n    int auditSelectedL = auditSelectedIn\n    int auditMatchedL = auditMatchedIn\n    int auditExtraL = auditExtraIn\n    int v15CountTodayL = v15N"
+if sig_old not in pine:
+    raise SystemExit("Could not find f_eval_candidate signature")
+pine = pine.replace(sig_old, sig_new, 1)
+
+ret_old = "    [v15CountTodayL, runHiL, runLoL, pendingStopL, pendingLongL, pendingSessL, orderPendingL]\n"
+ret_new = "    [v15CountTodayL, runHiL, runLoL, pendingStopL, pendingLongL, pendingSessL, orderPendingL, auditSelectedL, auditMatchedL, auditExtraL]\n"
+if ret_old not in pine:
+    raise SystemExit("Could not find f_eval_candidate return")
+pine = pine.replace(ret_old, ret_new, 1)
+
+call_old = "[_v15N, _runHi, _runLo, _pStop, _pLong, _pSess, _pOrder] = f_eval_candidate(v15CountToday, runHi, runLo, pendingStop, pendingLong, pendingSess, orderPending)\n"
+call_new = "[_v15N, _runHi, _runLo, _pStop, _pLong, _pSess, _pOrder, _auditSelectedOut, _auditMatchedOut, _auditExtraOut] = f_eval_candidate(v15CountToday, runHi, runLo, pendingStop, pendingLong, pendingSess, orderPending, auditSelected, auditMatchedCount, auditExtra)\nauditSelected := _auditSelectedOut\nauditMatchedCount := _auditMatchedOut\nauditExtra := _auditExtraOut\n"
+if call_old not in pine:
+    raise SystemExit("Could not find f_eval_candidate call")
+pine = pine.replace(call_old, call_new, 1)
+
 needle = "// Frozen thresholds\n"
 audit_defs = f"""// SELECTION PARITY AUDIT — Sep 1-17, 2026 only.
 // These 50 keys are comparison data only. They NEVER authorize a trade.
