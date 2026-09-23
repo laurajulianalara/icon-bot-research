@@ -212,7 +212,8 @@ atr3 = ta.sma(tr3, 20)
     close,
     ta.sma(math.max(high-low, math.max(math.abs(high-close[1]), math.abs(low-close[1]))), 20),
     close-open,
-    ta.sum(close-open > 0 ? 1 : 0, 6)
+    (close > open ? 1 : 0) + (close[1] > open[1] ? 1 : 0) + (close[2] > open[2] ? 1 : 0) + (close[3] > open[3] ? 1 : 0) + (close[4] > open[4] ? 1 : 0) + (close[5] > open[5] ? 1 : 0),
+    (close < open ? 1 : 0) + (close[1] < open[1] ? 1 : 0) + (close[2] < open[2] ? 1 : 0) + (close[3] < open[3] ? 1 : 0) + (close[4] < open[4] ? 1 : 0) + (close[5] < open[5] ? 1 : 0)
 ])
 '''
 
