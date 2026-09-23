@@ -1,21 +1,24 @@
 import pandas as pd, numpy as np
 
-print("=== REMAINING 1,145 — NATIVE 1M RECOVERABILITY AUDIT ===")
+print("=== REMAINING 1,145 — NATIVE 1M RECOVERABILITY AUDIT (FIXED) ===")
 a=pd.read_csv("data/original_1911_exact_live_future_rr_audit.csv")
-# discover classification column robustly
-cc=next(c for c in a.columns if "class" in c.lower() or "future" in c.lower() and a[c].dtype=="object")
-print("Classification column:",cc)
-print(a[cc].value_counts(dropna=False).to_string())
+if "future_dependent" not in a.columns:
+    raise RuntimeError("Expected future_dependent column not found. Columns: "+", ".join(a.columns))
+fd=a["future_dependent"]
+if fd.dtype==object:
+    flag=fd.astype(str).str.lower().isin(["true","1","yes"])
+else:
+    flag=fd.astype(bool)
+bad=a[flag].copy()
+print("Future-dependent reference rows:",len(bad))
+if len(bad)!=1145:
+    print("WARNING: expected 1,145 from exact audit; found",len(bad))
 
-bad=a[a[cc].astype(str).str.upper().str.contains("FUTURE")].copy()
-print("\nFuture-dependent reference rows:",len(bad))
-
-# Parse likely time/direction fields
-ot=next(c for c in ["candidate_time","original_candidate_time","time"] if c in bad.columns)
-mt=next((c for c in ["mapped_candidate_time","mapped_time"] if c in bad.columns),None)
-dc=next(c for c in ["direction","side","dir"] if c in bad.columns)
+ot="candidate_time"
+mt="mapped_1m_candidate_time"
+dc="direction"
 bad[ot]=pd.to_datetime(bad[ot],utc=True,errors="coerce")
-if mt: bad[mt]=pd.to_datetime(bad[mt],utc=True,errors="coerce")
+bad[mt]=pd.to_datetime(bad[mt],utc=True,errors="coerce")
 
 one=pd.read_parquet("data/mnq_continuous_1m.parquet").copy()
 one["t"]=pd.to_datetime(one["time_ny"],utc=True,errors="coerce")
@@ -24,53 +27,48 @@ idx=pd.Series(one.index,index=one.t).to_dict()
 
 rows=[]
 for _,r in bad.iterrows():
-    T=r[ot]; i=idx.get(T)
+    T=r[ot]; mapped=r[mt]; i=idx.get(T)
     if i is None: continue
     direction=str(r[dc]).upper()
-    # Original old decision/entry boundary is T+3 open.
     entry_i=i+3
     if entry_i>=len(one): continue
-    # Find latest same-direction new session extreme from T through T+3 using only arrived 1m bars.
-    ny=one.t.dt.tz_convert("America/New_York")
-    tny=ny.iloc[i]; mins=tny.hour*60+tny.minute
-    if mins>=1200 or mins<1: lo,hi=1200,1440
-    elif 120<=mins<300: lo,hi=120,300
-    elif 570<=mins<750: lo,hi=570,750
-    elif 810<=mins<1020: lo,hi=810,1020
-    else: continue
-    day=tny.date()
-    # session start index for running extreme
-    k=i
-    while k>0:
-        pny=ny.iloc[k-1]; pm=pny.hour*60+pny.minute
-        same_day=pny.date()==day or (lo==1200 and (pny.date()==day))
-        in_s=(pm>=lo and pm<hi) if lo!=1200 else (pm>=1200 or pm<1)
-        if not in_s: break
-        k-=1
-    latest=None
-    run=-np.inf if direction=="SHORT" else np.inf
-    for z in range(k,min(entry_i+1,len(one))):
-        val=float(one.iloc[z].high if direction=="SHORT" else one.iloc[z].low)
-        isnew=val>run if direction=="SHORT" else val<run
-        if isnew:
-            run=val
-            if z>=i: latest=z
-    if latest is None: latest=i
-    off=latest-i
-    rows.append({"original_time":T,"direction":direction,"latest_extreme_offset_min":off,
-                 "latest_extreme_time":one.iloc[latest].t,
-                 "known_by_Tplus3":latest<=entry_i,
-                 "can_enter_next_open":latest+1<len(one),
-                 "next_open_offset":latest+1-i})
+    # Was the mapped native 1m extreme itself already printed by the old T+3 entry boundary?
+    mi=idx.get(mapped)
+    mapped_known=(mi is not None and mi<=entry_i)
+    mapped_offset=(mi-i) if mi is not None else np.nan
+
+    # Find the most extreme price that actually ARRIVED from original T through T+3.
+    window=one.iloc[i:entry_i+1]
+    if direction=="SHORT":
+        rel=int(np.argmax(window.high.to_numpy()))
+        latest_extreme_i=i+rel
+        arrived_extreme=float(window.high.iloc[rel])
+    else:
+        rel=int(np.argmin(window.low.to_numpy()))
+        latest_extreme_i=i+rel
+        arrived_extreme=float(window.low.iloc[rel])
+
+    next_i=latest_extreme_i+1
+    rows.append({
+        "original_time":T,"mapped_1m_candidate_time":mapped,"direction":direction,
+        "mapped_offset_min":mapped_offset,"mapped_known_by_Tplus3":mapped_known,
+        "arrived_extreme_time":one.iloc[latest_extreme_i].t,
+        "arrived_extreme_offset_min":latest_extreme_i-i,
+        "arrived_extreme":arrived_extreme,
+        "next_open_offset_min":next_i-i,
+        "next_open_exists":next_i<len(one)
+    })
+
 out=pd.DataFrame(rows)
-print("\nMapped to native 1m:",len(out),"/",len(bad))
+print("Mapped original timestamps to native 1m:",len(out),"/",len(bad))
 if len(out):
-    print("\nLATEST ARRIVED EXTREME OFFSET FROM ORIGINAL T")
-    print(out.latest_extreme_offset_min.value_counts().sort_index().to_string())
-    print("\nKnown by original T+3 boundary:",int(out.known_by_Tplus3.sum()),"/",len(out))
-    print("Potentially re-anchorable to latest arrived 1m extreme:",int(out.can_enter_next_open.sum()),"/",len(out))
-    print("\nNEXT-OPEN OFFSET AFTER LATEST ARRIVED EXTREME")
-    print(out.next_open_offset.value_counts().sort_index().to_string())
+    print("\nMAPPED REFERENCE EXTREME OFFSET")
+    print(out.mapped_offset_min.value_counts(dropna=False).sort_index().to_string())
+    print("\nMapped reference extreme known by original T+3 boundary:",
+          int(out.mapped_known_by_Tplus3.sum()),"/",len(out))
+    print("\nACTUAL MOST-EXTREME BAR ARRIVED BY T+3 — OFFSET")
+    print(out.arrived_extreme_offset_min.value_counts().sort_index().to_string())
+    print("\nNext-open exists after arrived extreme:",int(out.next_open_exists.sum()),"/",len(out))
 out.to_csv("data/remaining_1145_native_1m_recoverability.csv",index=False)
 print("\nSaved data/remaining_1145_native_1m_recoverability.csv")
-print("This is a timing/recoverability audit only. It does NOT call these trades causal or profitable yet.")
+print("This audit tests timing recoverability only; it does not yet certify selection or RR.")
