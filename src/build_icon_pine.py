@@ -101,7 +101,7 @@ lines.append("")
 # Pine has independent size limits for both the main body and each function.
 # Split the nine exact frozen loads across several small initializer functions,
 # then dispatch those helpers from a tiny top-level initializer.
-chunk_size = 2
+chunk_size = 1
 helper_names = []
 for start in range(0, len(ORDER), chunk_size):
     stop = min(start + chunk_size, len(ORDER))
