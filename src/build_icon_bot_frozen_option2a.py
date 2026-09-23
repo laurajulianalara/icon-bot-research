@@ -1,15 +1,22 @@
 from pathlib import Path
 
-REF = Path("src/icon_v15_reference_generated.pine")
 OUT = Path("src/icon_bot_frozen_option2a.pine")
 
-if not REF.exists():
-    raise SystemExit(f"Missing {REF}. Run: python src/build_icon_pine.py")
-
-v15 = REF.read_text()
+# Frozen V15 distributions are private TradingView libraries.
+v15 = ""
 
 HEADER = r'''//@version=6
 strategy("Icon Bot", "Icon Bot", overlay = true, pyramiding = 0, process_orders_on_close = false, calc_on_order_fills = false, calc_on_every_tick = true, use_bar_magnifier = true, default_qty_type = strategy.fixed, initial_capital = 1000000, margin_long = 1, margin_short = 1, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500, max_bars_back = 5000)
+
+import laurajulianaaa/IconV15_0/1 as v15_0
+import laurajulianaaa/IconV15_1/1 as v15_1
+import laurajulianaaa/IconV15_2/1 as v15_2
+import laurajulianaaa/IconV15_3/1 as v15_3
+import laurajulianaaa/IconV15_4/1 as v15_4
+import laurajulianaaa/IconV15_5/1 as v15_5
+import laurajulianaaa/IconV15_6/1 as v15_6
+import laurajulianaaa/IconV15_7/1 as v15_7
+import laurajulianaaa/IconV15_8/1 as v15_8
 
 // THE ICON — FROZEN OPTION 2A
 // Strategy engine only is replaced. Existing session/visual/risk/PMT settings retained.
@@ -222,15 +229,15 @@ ENGINE = r'''
 f_v15_score(float rejection_quality, float impulse_to_reclaim, float reclaim_to_sweep,
     float reversal_impulse, float reclaim_x_wick, float close_x_reclaim,
     float sweep_minus_reclaim, float impulse_minus_reclaim, float quality_balance) =>
-    p0 = f_frozen_pct_rank(rejection_quality, v15_0_values, v15_0_counts, 1477)
-    p1 = f_frozen_pct_rank(impulse_to_reclaim, v15_1_values, v15_1_counts, 1477)
-    p2 = f_frozen_pct_rank(reclaim_to_sweep, v15_2_values, v15_2_counts, 1477)
-    p3 = f_frozen_pct_rank(reversal_impulse, v15_3_values, v15_3_counts, 1477)
-    p4 = f_frozen_pct_rank(reclaim_x_wick, v15_4_values, v15_4_counts, 1477)
-    p5 = f_frozen_pct_rank(close_x_reclaim, v15_5_values, v15_5_counts, 1477)
-    p6 = f_frozen_pct_rank(sweep_minus_reclaim, v15_6_values, v15_6_counts, 1477)
-    p7 = f_frozen_pct_rank(impulse_minus_reclaim, v15_7_values, v15_7_counts, 1477)
-    p8 = f_frozen_pct_rank(quality_balance, v15_8_values, v15_8_counts, 1477)
+    p0 = v15_0.rank(rejection_quality)
+    p1 = v15_1.rank(impulse_to_reclaim)
+    p2 = v15_2.rank(reclaim_to_sweep)
+    p3 = v15_3.rank(reversal_impulse)
+    p4 = v15_4.rank(reclaim_x_wick)
+    p5 = v15_5.rank(close_x_reclaim)
+    p6 = v15_6.rank(sweep_minus_reclaim)
+    p7 = v15_7.rank(impulse_minus_reclaim)
+    p8 = v15_8.rank(quality_balance)
     (2*p0 + 2*p1 + (1-p2) + p3 + 2*(1-p4) + 2*(1-p5) + p6 + 2*p7 + 2*p8) / 15.0
 
 var int v15CountToday = 0
@@ -305,8 +312,6 @@ f_eval_candidate(int v15N, float hiRun, float loRun, float pStop, bool pLong, st
                         float reclaim = isLong ? (m2c - extreme) / a : (extreme - m2c) / a
 
                         int m2DirBars5 = int(array.get(isLong ? bull6 : bear6, 2))
-                        if not isLong
-                            m2DirBars5 := 6 - m2DirBars5
 
                         bool v7 = m1Move <= 0.300 and m1ClosePos >= 0.140 and m2ClosePos <= 0.912
                         bool v8 = reclaim <= 0.90 and m2ClosePos <= 0.80 and wickPercent <= 0.60 and m2Move <= 0.15 and m2DirBars5 <= 4
