@@ -344,6 +344,14 @@ f_handle_fill(int startedN, float pStop, bool pLong, string pSess, bool pOrder, 
     int startedTradesL = startedN
     bool orderPendingL = pOrder
     TradeVis visOut = visIn
+    // Declare return-state locals at function scope. Pine block-scopes variables
+    // declared inside an if, so these must exist before the newFill branch.
+    bool stBullL = pLong
+    float stEntryL = na
+    float stStopL = pStop
+    float stQtyL = na
+    float stTargetL = na
+    string stSessNameL = pSess
     int currentStartedTrades = strategy.closedtrades + strategy.opentrades
     bool newFill = currentStartedTrades > startedTradesL
     if newFill
@@ -358,13 +366,13 @@ f_handle_fill(int startedN, float pStop, bool pLong, string pSess, bool pOrder, 
             actualEntry := strategy.closedtrades.entry_price(t)
             actualEntryBar := strategy.closedtrades.entry_bar_index(t)
 
-        bool stBullL = pLong
-        float stEntryL = actualEntry
-        float stStopL = pStop
+        stBullL := pLong
+        stEntryL := actualEntry
+        stStopL := pStop
         float riskDist = stBullL ? stEntryL - stStopL : stStopL - stEntryL
-        float stQtyL = f_qty(riskDist)
-        float stTargetL = stBullL ? stEntryL + riskDist * rrRatio : stEntryL - riskDist * rrRatio
-        string stSessNameL = pSess
+        stQtyL := f_qty(riskDist)
+        stTargetL := stBullL ? stEntryL + riskDist * rrRatio : stEntryL - riskDist * rrRatio
+        stSessNameL := pSess
         startedTradesL := currentStartedTrades
         orderPendingL := false
 
@@ -387,9 +395,9 @@ f_handle_fill(int startedN, float pStop, bool pLong, string pSess, bool pOrder, 
                 float wBtm = stBullL ? stEntryL : stTargetL
                 visOut.bxRisk := box.new(actualEntryBar, rTop, bar_index, rBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRiskC)
                 visOut.bxReward := box.new(actualEntryBar, wTop, bar_index, wBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRewardC)
-                visOut.lnEntry := line.new(actualEntryBar, stEntry, bar_index, stEntry, xloc.bar_index, color = rrEntryC, style = line.style_dotted)
-                visOut.lnStop := line.new(actualEntryBar, stStop, bar_index, stStop, xloc.bar_index, color = rrStopC, style = line.style_solid)
-                visOut.lnTarget := line.new(actualEntryBar, stTarget, bar_index, stTarget, xloc.bar_index, color = rrTargetC, style = line.style_dashed)
+                visOut.lnEntry := line.new(actualEntryBar, stEntryL, bar_index, stEntryL, xloc.bar_index, color = rrEntryC, style = line.style_dotted)
+                visOut.lnStop := line.new(actualEntryBar, stStopL, bar_index, stStopL, xloc.bar_index, color = rrStopC, style = line.style_solid)
+                visOut.lnTarget := line.new(actualEntryBar, stTargetL, bar_index, stTargetL, xloc.bar_index, color = rrTargetC, style = line.style_dashed)
     [newFill, startedTradesL, orderPendingL, stBullL, stEntryL, stStopL, stQtyL, stTargetL, stSessNameL, visOut]
 
 f_handle_closed_trade(int processedN, float pnlDay, float pAsia, float pLondon, float pNYAM, float pNYPM, int wins, int losses, TradeVis visIn) =>
@@ -421,7 +429,7 @@ f_handle_closed_trade(int processedN, float pnlDay, float pAsia, float pLondon, 
             dayLossesL += 1
         if not na(visOut)
             if rrSH and not na(visOut.bxRisk)
-                stVis.bxRisk.set_right(closedExitBar)
+                visOut.bxRisk.set_right(closedExitBar)
                 visOut.bxReward.set_right(closedExitBar)
                 visOut.lnEntry.set_x2(closedExitBar)
                 visOut.lnStop.set_x2(closedExitBar)
