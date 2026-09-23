@@ -292,7 +292,7 @@ if inKZ and not sessStarted and barstate.isconfirmed and not na(runHi) and not n
 
                     // Exact Python m2_dir_bars5: count direction-aligned candles in i-3..i+2.
                     // We calculate both bullish/bearish 6-bar counts directly in 1m context.
-                    int m2DirBars5 = int(array.get(d6, 2))
+                    int m2DirBars5 = int(array.get(isLong ? bull6 : bear6, 2))
                     if not isLong
                         // For shorts count bearish bars instead of bullish bars.
                         // Reconstruct from the same six candles: bearish = non-doji directional bars opposite bullish.
