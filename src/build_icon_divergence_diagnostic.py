@@ -178,15 +178,8 @@ if barstate.islast
 """
 pine += tail
 
-OUT.write_text(pine)
-print("CREATED", OUT)
-print("AUDIT WINDOW: Sep 1-17, 2026 ET")
-print("LEFT TABLE: stage-by-stage divergence")
-print("RIGHT TABLE: final selection parity")
-print("Frozen 50 are comparison-only; strategy rules are unchanged.")
-
-
-// Sep 1 pre-cap sequence: expose exactly which Pine V15 events consumed
+# Add the Sep 1 pre-cap sequence to the GENERATED PINE, not to this Python builder.
+seq_tail = r"""// Sep 1 pre-cap sequence: expose exactly which Pine V15 events consumed
 // the six slots before the first blocked frozen trade at 04:57 ET.
 var table seqTable = table.new(position.bottom_right, 6, 9, border_width = 1)
 if barstate.islast
@@ -215,3 +208,11 @@ if barstate.islast
     table.cell(seqTable, 3, 8, "YES")
     table.cell(seqTable, 4, 8, "Python selected")
     table.cell(seqTable, 5, 8, "Pine #7")
+"""
+pine += seq_tail
+OUT.write_text(pine)\n
+print("CREATED", OUT)
+print("AUDIT WINDOW: Sep 1-17, 2026 ET")
+print("LEFT TABLE: stage-by-stage divergence")
+print("RIGHT TABLE: final selection parity")
+print("Frozen 50 are comparison-only; strategy rules are unchanged.")
