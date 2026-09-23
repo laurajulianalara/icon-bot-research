@@ -98,10 +98,11 @@ f_load_frozen_ref(
 
 lines.append("")
 
-# Load each frozen reference through its own tiny first-bar block.
-# Pine can reject one large if block after inlining f_load_frozen_ref().
+# Keep V15 initialization out of Pine's global/main body. TradingView has a
+# separate main-body IL-token limit, so dispatch the nine exact frozen loads
+# through one function and leave only one lightweight call at global scope.
+lines.append("f_init_frozen_v15() =>")
 for idx in range(len(ORDER)):
-    lines.append("if barstate.isfirst")
     lines.append(
         f"    f_load_frozen_ref("
         f"v15_{idx}_values_text, "
@@ -109,7 +110,10 @@ for idx in range(len(ORDER)):
         f"v15_{idx}_values, "
         f"v15_{idx}_counts)"
     )
-    lines.append("")
+lines.append("")
+lines.append("if barstate.isfirst")
+lines.append("    f_init_frozen_v15()")
+lines.append("")
 
 lines.append("""
 f_frozen_pct_rank(
