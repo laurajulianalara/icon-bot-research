@@ -98,18 +98,29 @@ f_load_frozen_ref(
 
 lines.append("")
 
-# Keep V15 initialization out of Pine's global/main body. TradingView has a
-# separate main-body IL-token limit, so dispatch the nine exact frozen loads
-# through one function and leave only one lightweight call at global scope.
+# Pine has independent size limits for both the main body and each function.
+# Split the nine exact frozen loads across several small initializer functions,
+# then dispatch those helpers from a tiny top-level initializer.
+chunk_size = 2
+helper_names = []
+for start in range(0, len(ORDER), chunk_size):
+    stop = min(start + chunk_size, len(ORDER))
+    helper = f"f_init_frozen_v15_{start // chunk_size}"
+    helper_names.append(helper)
+    lines.append(f"{helper}() =>")
+    for idx in range(start, stop):
+        lines.append(
+            f"    f_load_frozen_ref("
+            f"v15_{idx}_values_text, "
+            f"v15_{idx}_counts_text, "
+            f"v15_{idx}_values, "
+            f"v15_{idx}_counts)"
+        )
+    lines.append("")
+
 lines.append("f_init_frozen_v15() =>")
-for idx in range(len(ORDER)):
-    lines.append(
-        f"    f_load_frozen_ref("
-        f"v15_{idx}_values_text, "
-        f"v15_{idx}_counts_text, "
-        f"v15_{idx}_values, "
-        f"v15_{idx}_counts)"
-    )
+for helper in helper_names:
+    lines.append(f"    {helper}()")
 lines.append("")
 lines.append("if barstate.isfirst")
 lines.append("    f_init_frozen_v15()")
