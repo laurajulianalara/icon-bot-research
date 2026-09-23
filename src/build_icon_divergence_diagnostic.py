@@ -24,6 +24,10 @@ defs = r"""// DIVERGENCE DIAGNOSTIC
 // 0 Candidate, 1 V7, 2 V8, 3 V15, 4 6/day, 5 V27.
 var array<int> diagTotal = array.new_int(6, 0)
 var array<int> diagFrozen = array.new_int(6, 0)
+var array<int> diagV15Times = array.new_int()
+var array<int> diagV15Dirs = array.new_int()
+var array<int> diagV15DayNums = array.new_int()
+var array<bool> diagV15Frozen = array.new_bool()
 
 f_diag_is_frozen(int t, int d) =>
     bool found = false
@@ -83,6 +87,10 @@ old = """                            bool v15 = score >= V15_SCORE_THRESHOLD
 new = """                            bool v15 = score >= V15_SCORE_THRESHOLD
                             if v15 and time >= AUDIT_START and time < AUDIT_END
                                 f_diag_hit(3, time, isLong ? 1 : -1)
+                                array.push(diagV15Times, time)
+                                array.push(diagV15Dirs, isLong ? 1 : -1)
+                                array.push(diagV15DayNums, v15CountTodayL + 1)
+                                array.push(diagV15Frozen, f_diag_is_frozen(time, isLong ? 1 : -1))
                             if v15 and v15CountTodayL < MAX_V15_PER_ET_DAY
                                 if time >= AUDIT_START and time < AUDIT_END
                                     f_diag_hit(4, time, isLong ? 1 : -1)
@@ -137,6 +145,30 @@ if barstate.islast
     table.cell(divTable, 0, 7, "First frozen drop")
     table.cell(divTable, 1, 7, firstDrop)
     table.cell(divTable, 2, 7, firstDropStage == -1 ? "50/50 survive" : str.tostring(array.get(diagFrozen, firstDropStage)) + "/50")
+
+// Exact 6/day diagnostic: first frozen trade that Pine encounters only after
+// its six V15 slots for that ET day are already consumed.
+var table capTable = table.new(position.bottom_left, 2, 5, border_width = 1)
+if barstate.islast
+    int blockedIdx = -1
+    for ii = 0 to array.size(diagV15Times) - 1
+        if blockedIdx == -1 and array.get(diagV15Frozen, ii) and array.get(diagV15DayNums, ii) > 6
+            blockedIdx := ii
+    table.cell(capTable, 0, 0, "6/DAY — FIRST BLOCKED FROZEN")
+    if blockedIdx >= 0
+        int bt = array.get(diagV15Times, blockedIdx)
+        int bd = array.get(diagV15Dirs, blockedIdx)
+        int bn = array.get(diagV15DayNums, blockedIdx)
+        table.cell(capTable, 0, 1, "Time")
+        table.cell(capTable, 1, 1, str.format_time(bt, "yyyy-MM-dd HH:mm", "America/New_York"))
+        table.cell(capTable, 0, 2, "Direction")
+        table.cell(capTable, 1, 2, bd == 1 ? "LONG" : "SHORT")
+        table.cell(capTable, 0, 3, "Pine V15 # that day")
+        table.cell(capTable, 1, 3, str.tostring(bn))
+        table.cell(capTable, 0, 4, "Meaning")
+        table.cell(capTable, 1, 4, "Earlier Pine V15 extras consumed cap")
+    else
+        table.cell(capTable, 0, 1, "None found")
 """
 pine += tail
 
