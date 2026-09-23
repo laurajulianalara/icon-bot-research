@@ -234,103 +234,13 @@ f_v15_score(float rejection_quality, float impulse_to_reclaim, float reclaim_to_
     (2*p0 + 2*p1 + (1-p2) + p3 + 2*(1-p4) + 2*(1-p5) + p6 + 2*p7 + 2*p8) / 15.0
 
 var int v15CountToday = 0
-etDayKey = year(time, kzTZ) * 10000 + month(time, kzTZ) * 100 + dayofmonth(time, kzTZ)
-if bar_index > 0 and etDayKey != etDayKey[1]
-    v15CountToday := 0
-
 var float runHi = na
 var float runLo = na
-if sessStarted
-    runHi := high
-    runLo := low
-
 var float pendingStop = na
 var bool pendingLong = false
 var string pendingSess = "NONE"
 var bool orderPending = false
 
-// Candidate evaluation happens at the close of the candidate 3m bar. With
-// process_orders_on_close=false, strategy.entry is filled at next 3m open (T+3).
-if inKZ and not sessStarted and barstate.isconfirmed and not na(runHi) and not na(runLo)
-    bool newLow = low < runLo
-    bool newHigh = high > runHi
-    int n1 = array.size(c1)
-    bool have3 = n1 >= 3 and array.size(o1) >= 3 and array.size(h1) >= 3 and array.size(l1) >= 3 and array.size(a1) >= 3
-
-    if have3 and (newLow or newHigh)
-        for side = 0 to 1
-            bool isLong = side == 0
-            bool exists = isLong ? newLow : newHigh
-            if exists
-                float sg = isLong ? 1.0 : -1.0
-                float extreme = isLong ? low : high
-                float sweepDistance = isLong ? (runLo - low) : (high - runHi)
-                float rng = high - low
-                float wickPercent = rng > 0 ? (isLong ? (math.min(open, close)-low)/rng : (high-math.max(open, close))/rng) : 0.0
-
-                float baseClose = array.get(c1, 0)
-                float a = array.get(a1, 0)
-                float m1o = array.get(o1, 1)
-                float m1h = array.get(h1, 1)
-                float m1l = array.get(l1, 1)
-                float m1c = array.get(c1, 1)
-                float m2o = array.get(o1, 2)
-                float m2h = array.get(h1, 2)
-                float m2l = array.get(l1, 2)
-                float m2c = array.get(c1, 2)
-
-                if not na(a) and a > 0 and not na(atr3) and atr3 > 0
-                    float m1Move = (m1c - baseClose) / a * sg
-                    float m1cp = m1h > m1l ? (m1c - m1l) / (m1h - m1l) : 0.5
-                    float m1ClosePos = isLong ? m1cp : 1.0 - m1cp
-                    float m2Move = (m2c - baseClose) / a * sg
-                    float m2cp = m2h > m2l ? (m2c - m2l) / (m2h - m2l) : 0.5
-                    float m2ClosePos = isLong ? m2cp : 1.0 - m2cp
-
-                    // Exact Python early reclaim: the CLOSE of minute i+2 relative to candidate extreme.
-                    float reclaim = isLong ? (m2c - extreme) / a : (extreme - m2c) / a
-
-                    // Exact Python m2_dir_bars5: count direction-aligned candles in i-3..i+2.
-                    // We calculate both bullish/bearish 6-bar counts directly in 1m context.
-                    int m2DirBars5 = int(array.get(isLong ? bull6 : bear6, 2))
-                    if not isLong
-                        // For shorts count bearish bars instead of bullish bars.
-                        // Reconstruct from the same six candles: bearish = non-doji directional bars opposite bullish.
-                        // Use a second lower-TF request below if strict parity requires doji-sensitive count.
-                        m2DirBars5 := 6 - m2DirBars5
-
-                    bool v7 = m1Move <= 0.300 and m1ClosePos >= 0.140 and m2ClosePos <= 0.912
-                    bool v8 = reclaim <= 0.90 and m2ClosePos <= 0.80 and wickPercent <= 0.60 and m2Move <= 0.15 and m2DirBars5 <= 4
-
-                    if v7 and v8
-                        float sweepAtr = sweepDistance / atr3
-                        float rejectionQuality = (1 - math.min(math.max(m2ClosePos, 0), 1)) * (1 - math.min(math.max(wickPercent, 0), 1))
-                        float reversalImpulse = -m2Move
-                        float reclaimToSweep = reclaim / (math.abs(sweepAtr) + 0.05)
-                        float impulseToReclaim = reversalImpulse / (math.abs(reclaim) + 0.05)
-                        float reclaimXWick = reclaim * wickPercent
-                        float closeXReclaim = m2ClosePos * reclaim
-                        float sweepMinusReclaim = sweepAtr - reclaim
-                        float impulseMinusReclaim = reversalImpulse - reclaim
-                        float qualityBalance = rejectionQuality * impulseToReclaim / (1 + reclaimToSweep)
-                        float score = f_v15_score(rejectionQuality, impulseToReclaim, reclaimToSweep, reversalImpulse, reclaimXWick, closeXReclaim, sweepMinusReclaim, impulseMinusReclaim, qualityBalance)
-
-                        bool v15 = score >= V15_SCORE_THRESHOLD
-                        if v15 and v15CountToday < MAX_V15_PER_ET_DAY
-                            // Historical pipeline consumes one of the six V15 slots BEFORE V27.
-                            v15CountToday += 1
-                            bool v27 = not (reclaim >= V27_RTH and reclaimXWick >= V27_WTH)
-                            if v27 and strategy.position_size == 0 and not orderPending
-                                pendingStop := isLong ? extreme - 0.25 : extreme + 0.25
-                                pendingLong := isLong
-                                pendingSess := sessName
-                                orderPending := true
-                                strategy.entry(isLong ? "IB Long" : "IB Short", isLong ? strategy.long : strategy.short, qty = 1)
-
-    runHi := math.max(runHi, high)
-    runLo := math.min(runLo, low)
-
-// Fill detection + exact stop / actual-fill RR target.
 var int startedTrades = 0
 var int processedClosedTrades = 0
 var float stEntry = na
@@ -342,58 +252,6 @@ var string stSessName = "NONE"
 var TradeVis stVis = na
 var array<TradeVis> visHist = array.new<TradeVis>(0)
 
-currentStartedTrades = strategy.closedtrades + strategy.opentrades
-newFill = currentStartedTrades > startedTrades
-if newFill
-    float actualEntry = na
-    float actualSize = na
-    int actualEntryBar = na
-    if strategy.opentrades > 0
-        t = strategy.opentrades - 1
-        actualEntry := strategy.opentrades.entry_price(t)
-        actualSize := strategy.opentrades.size(t)
-        actualEntryBar := strategy.opentrades.entry_bar_index(t)
-    else
-        t = strategy.closedtrades - 1
-        actualEntry := strategy.closedtrades.entry_price(t)
-        actualSize := strategy.closedtrades.size(t)
-        actualEntryBar := strategy.closedtrades.entry_bar_index(t)
-
-    stBull := pendingLong
-    stEntry := actualEntry
-    stStop := pendingStop
-    riskDist = stBull ? stEntry - stStop : stStop - stEntry
-    stQty := f_qty(riskDist)
-    stTarget := stBull ? stEntry + riskDist * rrRatio : stEntry - riskDist * rrRatio
-    stSessName := pendingSess
-    startedTrades := currentStartedTrades
-    orderPending := false
-
-    if riskDist > 0
-        entryMsg = pmtEnabled ? f_pmtEntryPayload(stBull ? "BUY" : "SELL", stQty, stEntry, stStop, stTarget) : ""
-        closeMsg = pmtEnabled ? f_pmtClosePayload() : ""
-        if stBull
-            strategy.exit("IB Long Exit", "IB Long", stop = stStop, limit = stTarget, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
-        else
-            strategy.exit("IB Short Exit", "IB Short", stop = stStop, limit = stTarget, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
-
-        stVis := TradeVis.new()
-        if lblSH
-            lblY = stBull ? stEntry - atrForStop * lblOffsetATR : stEntry + atrForStop * lblOffsetATR
-            chipCol = stBull ? col_bullish : col_bearish
-            stVis.lbEntry := label.new(actualEntryBar, lblY, stBull ? "[ ▲ BUY ]" : "[ ▼ SELL ]", xloc.bar_index, yloc.price, color = color.new(color.black, 100), style = label.style_label_center, textcolor = chipCol, size = teLblSize)
-        if rrSH
-            rTop = stBull ? stEntry : stStop
-            rBtm = stBull ? stStop : stEntry
-            wTop = stBull ? stTarget : stEntry
-            wBtm = stBull ? stEntry : stTarget
-            stVis.bxRisk := box.new(actualEntryBar, rTop, bar_index, rBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRiskC)
-            stVis.bxReward := box.new(actualEntryBar, wTop, bar_index, wBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRewardC)
-            stVis.lnEntry := line.new(actualEntryBar, stEntry, bar_index, stEntry, xloc.bar_index, color = rrEntryC, style = line.style_dotted)
-            stVis.lnStop := line.new(actualEntryBar, stStop, bar_index, stStop, xloc.bar_index, color = rrStopC, style = line.style_solid)
-            stVis.lnTarget := line.new(actualEntryBar, stTarget, bar_index, stTarget, xloc.bar_index, color = rrTargetC, style = line.style_dashed)
-
-// Dashboard accounting
 var int dayTrades = 0
 var int dayLosses = 0
 var int dayWins = 0
@@ -402,7 +260,210 @@ var float pnlAsia = 0.0
 var float pnlLondon = 0.0
 var float pnlNYAM = 0.0
 var float pnlNYPM = 0.0
+
+f_eval_candidate() =>
+    if inKZ and not sessStarted and barstate.isconfirmed and not na(runHi) and not na(runLo)
+        bool newLow = low < runLo
+        bool newHigh = high > runHi
+        int n1 = array.size(c1)
+        bool have3 = n1 >= 3 and array.size(o1) >= 3 and array.size(h1) >= 3 and array.size(l1) >= 3 and array.size(a1) >= 3
+
+        if have3 and (newLow or newHigh)
+            for side = 0 to 1
+                bool isLong = side == 0
+                bool exists = isLong ? newLow : newHigh
+                if exists
+                    float sg = isLong ? 1.0 : -1.0
+                    float extreme = isLong ? low : high
+                    float sweepDistance = isLong ? (runLo - low) : (high - runHi)
+                    float rng = high - low
+                    float wickPercent = rng > 0 ? (isLong ? (math.min(open, close)-low)/rng : (high-math.max(open, close))/rng) : 0.0
+
+                    float baseClose = array.get(c1, 0)
+                    float a = array.get(a1, 0)
+                    float m1h = array.get(h1, 1)
+                    float m1l = array.get(l1, 1)
+                    float m1c = array.get(c1, 1)
+                    float m2h = array.get(h1, 2)
+                    float m2l = array.get(l1, 2)
+                    float m2c = array.get(c1, 2)
+
+                    if not na(a) and a > 0 and not na(atr3) and atr3 > 0
+                        float m1Move = (m1c - baseClose) / a * sg
+                        float m1cp = m1h > m1l ? (m1c - m1l) / (m1h - m1l) : 0.5
+                        float m1ClosePos = isLong ? m1cp : 1.0 - m1cp
+                        float m2Move = (m2c - baseClose) / a * sg
+                        float m2cp = m2h > m2l ? (m2c - m2l) / (m2h - m2l) : 0.5
+                        float m2ClosePos = isLong ? m2cp : 1.0 - m2cp
+                        float reclaim = isLong ? (m2c - extreme) / a : (extreme - m2c) / a
+
+                        int m2DirBars5 = int(array.get(isLong ? bull6 : bear6, 2))
+                        if not isLong
+                            m2DirBars5 := 6 - m2DirBars5
+
+                        bool v7 = m1Move <= 0.300 and m1ClosePos >= 0.140 and m2ClosePos <= 0.912
+                        bool v8 = reclaim <= 0.90 and m2ClosePos <= 0.80 and wickPercent <= 0.60 and m2Move <= 0.15 and m2DirBars5 <= 4
+
+                        if v7 and v8
+                            float sweepAtr = sweepDistance / atr3
+                            float rejectionQuality = (1 - math.min(math.max(m2ClosePos, 0), 1)) * (1 - math.min(math.max(wickPercent, 0), 1))
+                            float reversalImpulse = -m2Move
+                            float reclaimToSweep = reclaim / (math.abs(sweepAtr) + 0.05)
+                            float impulseToReclaim = reversalImpulse / (math.abs(reclaim) + 0.05)
+                            float reclaimXWick = reclaim * wickPercent
+                            float closeXReclaim = m2ClosePos * reclaim
+                            float sweepMinusReclaim = sweepAtr - reclaim
+                            float impulseMinusReclaim = reversalImpulse - reclaim
+                            float qualityBalance = rejectionQuality * impulseToReclaim / (1 + reclaimToSweep)
+                            float score = f_v15_score(rejectionQuality, impulseToReclaim, reclaimToSweep, reversalImpulse, reclaimXWick, closeXReclaim, sweepMinusReclaim, impulseMinusReclaim, qualityBalance)
+
+                            bool v15 = score >= V15_SCORE_THRESHOLD
+                            if v15 and v15CountToday < MAX_V15_PER_ET_DAY
+                                v15CountToday += 1
+                                bool v27 = not (reclaim >= V27_RTH and reclaimXWick >= V27_WTH)
+                                if v27 and strategy.position_size == 0 and not orderPending
+                                    pendingStop := isLong ? extreme - 0.25 : extreme + 0.25
+                                    pendingLong := isLong
+                                    pendingSess := sessName
+                                    orderPending := true
+                                    strategy.entry(isLong ? "IB Long" : "IB Short", isLong ? strategy.long : strategy.short, qty = 1)
+
+    if inKZ and not sessStarted
+        runHi := math.max(runHi, high)
+        runLo := math.min(runLo, low)
+
+f_handle_fill() =>
+    int currentStartedTrades = strategy.closedtrades + strategy.opentrades
+    bool newFill = currentStartedTrades > startedTrades
+    if newFill
+        float actualEntry = na
+        int actualEntryBar = na
+        if strategy.opentrades > 0
+            int t = strategy.opentrades - 1
+            actualEntry := strategy.opentrades.entry_price(t)
+            actualEntryBar := strategy.opentrades.entry_bar_index(t)
+        else
+            int t = strategy.closedtrades - 1
+            actualEntry := strategy.closedtrades.entry_price(t)
+            actualEntryBar := strategy.closedtrades.entry_bar_index(t)
+
+        stBull := pendingLong
+        stEntry := actualEntry
+        stStop := pendingStop
+        float riskDist = stBull ? stEntry - stStop : stStop - stEntry
+        stQty := f_qty(riskDist)
+        stTarget := stBull ? stEntry + riskDist * rrRatio : stEntry - riskDist * rrRatio
+        stSessName := pendingSess
+        startedTrades := currentStartedTrades
+        orderPending := false
+
+        if riskDist > 0
+            string closeMsg = pmtEnabled ? f_pmtClosePayload() : ""
+            if stBull
+                strategy.exit("IB Long Exit", "IB Long", stop = stStop, limit = stTarget, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
+            else
+                strategy.exit("IB Short Exit", "IB Short", stop = stStop, limit = stTarget, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
+
+            stVis := TradeVis.new()
+            if lblSH
+                float lblY = stBull ? stEntry - atrForStop * lblOffsetATR : stEntry + atrForStop * lblOffsetATR
+                color chipCol = stBull ? col_bullish : col_bearish
+                stVis.lbEntry := label.new(actualEntryBar, lblY, stBull ? "[ ▲ BUY ]" : "[ ▼ SELL ]", xloc.bar_index, yloc.price, color = color.new(color.black, 100), style = label.style_label_center, textcolor = chipCol, size = teLblSize)
+            if rrSH
+                float rTop = stBull ? stEntry : stStop
+                float rBtm = stBull ? stStop : stEntry
+                float wTop = stBull ? stTarget : stEntry
+                float wBtm = stBull ? stEntry : stTarget
+                stVis.bxRisk := box.new(actualEntryBar, rTop, bar_index, rBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRiskC)
+                stVis.bxReward := box.new(actualEntryBar, wTop, bar_index, wBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRewardC)
+                stVis.lnEntry := line.new(actualEntryBar, stEntry, bar_index, stEntry, xloc.bar_index, color = rrEntryC, style = line.style_dotted)
+                stVis.lnStop := line.new(actualEntryBar, stStop, bar_index, stStop, xloc.bar_index, color = rrStopC, style = line.style_solid)
+                stVis.lnTarget := line.new(actualEntryBar, stTarget, bar_index, stTarget, xloc.bar_index, color = rrTargetC, style = line.style_dashed)
+    newFill
+
+f_handle_closed_trade() =>
+    if strategy.closedtrades > processedClosedTrades
+        int lastClosed = strategy.closedtrades - 1
+        float closedProfit = strategy.closedtrades.profit(lastClosed)
+        int closedExitBar = strategy.closedtrades.exit_bar_index(lastClosed)
+        dayPnL += closedProfit
+        if stSessName == "ASIA"
+            pnlAsia += closedProfit
+        else if stSessName == "LONDON"
+            pnlLondon += closedProfit
+        else if stSessName == "NYAM"
+            pnlNYAM += closedProfit
+        else if stSessName == "NYPM"
+            pnlNYPM += closedProfit
+        if closedProfit > 0
+            dayWins += 1
+        else if closedProfit < 0
+            dayLosses += 1
+        if not na(stVis)
+            if rrSH and not na(stVis.bxRisk)
+                stVis.bxRisk.set_right(closedExitBar)
+                stVis.bxReward.set_right(closedExitBar)
+                stVis.lnEntry.set_x2(closedExitBar)
+                stVis.lnStop.set_x2(closedExitBar)
+                stVis.lnTarget.set_x2(closedExitBar)
+            visHist.unshift(stVis)
+            if visHist.size() > rrKeep
+                TradeVis old = visHist.pop()
+                if not na(old.bxRisk)
+                    old.bxRisk.delete()
+                if not na(old.bxReward)
+                    old.bxReward.delete()
+                if not na(old.lnEntry)
+                    old.lnEntry.delete()
+                if not na(old.lnStop)
+                    old.lnStop.delete()
+                if not na(old.lnTarget)
+                    old.lnTarget.delete()
+                if not na(old.lbEntry)
+                    old.lbEntry.delete()
+        stVis := na
+        processedClosedTrades := strategy.closedtrades
+
+f_update_open_visuals() =>
+    if rrSH and strategy.position_size != 0 and not na(stVis)
+        if not na(stVis.bxRisk)
+            stVis.bxRisk.set_right(bar_index)
+            stVis.bxReward.set_right(bar_index)
+            stVis.lnEntry.set_x2(bar_index)
+            stVis.lnStop.set_x2(bar_index)
+            stVis.lnTarget.set_x2(bar_index)
+
+f_draw_dashboard(table dashTable) =>
+    if barstate.islast and dashShow
+        string dayPnLText = (dayPnL >= 0 ? "+$" : "-$") + str.tostring(math.abs(dayPnL), "#.##")
+        string dayWinRateText = (dayWins + dayLosses) > 0 ? str.tostring(dayWins / (dayWins + dayLosses) * 100.0, "#") + "%" : "—"
+        string dayTradesText = str.tostring(dayTrades)
+        float bestVal = pnlAsia
+        string bestName = "Asia"
+        if pnlLondon > bestVal
+            bestVal := pnlLondon
+            bestName := "London"
+        if pnlNYAM > bestVal
+            bestVal := pnlNYAM
+            bestName := "NY AM"
+        if pnlNYPM > bestVal
+            bestVal := pnlNYPM
+            bestName := "NY PM"
+        string bestSessionText = dayTrades == 0 ? "—" : bestName
+        table.cell(dashTable, 0, 0, "PERFORMANCE", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 1, 0, "", bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 0, 1, "Net PnL", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 1, 1, dayPnLText, text_color = dayPnL >= 0 ? dashPositiveColor : dashNegativeColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 0, 2, "Win Rate", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 1, 2, dayWinRateText, text_color = dashValueColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 0, 3, "Trades Today", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 1, 3, dayTradesText, text_color = dashValueColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 0, 4, "Best Session", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+        table.cell(dashTable, 1, 4, bestSessionText, text_color = dashPositiveColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+
+etDayKey = year(time, kzTZ) * 10000 + month(time, kzTZ) * 100 + dayofmonth(time, kzTZ)
 if bar_index > 0 and etDayKey != etDayKey[1]
+    v15CountToday := 0
     dayTrades := 0
     dayLosses := 0
     dayWins := 0
@@ -411,86 +472,20 @@ if bar_index > 0 and etDayKey != etDayKey[1]
     pnlLondon := 0
     pnlNYAM := 0
     pnlNYPM := 0
+
+if sessStarted
+    runHi := high
+    runLo := low
+
+f_eval_candidate()
+bool newFill = f_handle_fill()
 if newFill
     dayTrades += 1
-
-if strategy.closedtrades > processedClosedTrades
-    lastClosed = strategy.closedtrades - 1
-    closedProfit = strategy.closedtrades.profit(lastClosed)
-    closedExitBar = strategy.closedtrades.exit_bar_index(lastClosed)
-    dayPnL += closedProfit
-    if stSessName == "ASIA"
-        pnlAsia += closedProfit
-    else if stSessName == "LONDON"
-        pnlLondon += closedProfit
-    else if stSessName == "NYAM"
-        pnlNYAM += closedProfit
-    else if stSessName == "NYPM"
-        pnlNYPM += closedProfit
-    if closedProfit > 0
-        dayWins += 1
-    else if closedProfit < 0
-        dayLosses += 1
-    if not na(stVis)
-        if rrSH and not na(stVis.bxRisk)
-            stVis.bxRisk.set_right(closedExitBar)
-            stVis.bxReward.set_right(closedExitBar)
-            stVis.lnEntry.set_x2(closedExitBar)
-            stVis.lnStop.set_x2(closedExitBar)
-            stVis.lnTarget.set_x2(closedExitBar)
-        visHist.unshift(stVis)
-        if visHist.size() > rrKeep
-            old = visHist.pop()
-            if not na(old.bxRisk)
-                old.bxRisk.delete()
-            if not na(old.bxReward)
-                old.bxReward.delete()
-            if not na(old.lnEntry)
-                old.lnEntry.delete()
-            if not na(old.lnStop)
-                old.lnStop.delete()
-            if not na(old.lnTarget)
-                old.lnTarget.delete()
-            if not na(old.lbEntry)
-                old.lbEntry.delete()
-    stVis := na
-    processedClosedTrades := strategy.closedtrades
-
-if rrSH and strategy.position_size != 0 and not na(stVis)
-    if not na(stVis.bxRisk)
-        stVis.bxRisk.set_right(bar_index)
-        stVis.bxReward.set_right(bar_index)
-        stVis.lnEntry.set_x2(bar_index)
-        stVis.lnStop.set_x2(bar_index)
-        stVis.lnTarget.set_x2(bar_index)
+f_handle_closed_trade()
+f_update_open_visuals()
 
 var table dashTable = table.new(dashPos, 2, 5, bgcolor = color.new(dashBgColor, dashBgTransp), frame_color = color.new(dashBorderColor, dashBorderTransp), frame_width = 1)
-if barstate.islast and dashShow
-    dayPnLText = (dayPnL >= 0 ? "+$" : "-$") + str.tostring(math.abs(dayPnL), "#.##")
-    dayWinRateText = (dayWins + dayLosses) > 0 ? str.tostring(dayWins / (dayWins + dayLosses) * 100.0, "#") + "%" : "—"
-    dayTradesText = str.tostring(dayTrades)
-    float bestVal = pnlAsia
-    string bestName = "Asia"
-    if pnlLondon > bestVal
-        bestVal := pnlLondon
-        bestName := "London"
-    if pnlNYAM > bestVal
-        bestVal := pnlNYAM
-        bestName := "NY AM"
-    if pnlNYPM > bestVal
-        bestVal := pnlNYPM
-        bestName := "NY PM"
-    bestSessionText = dayTrades == 0 ? "—" : bestName
-    table.cell(dashTable, 0, 0, "PERFORMANCE", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 1, 0, "", bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 0, 1, "Net PnL", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 1, 1, dayPnLText, text_color = dayPnL >= 0 ? dashPositiveColor : dashNegativeColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 0, 2, "Win Rate", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 1, 2, dayWinRateText, text_color = dashValueColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 0, 3, "Trades Today", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 1, 3, dayTradesText, text_color = dashValueColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 0, 4, "Best Session", text_color = dashLabelColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
-    table.cell(dashTable, 1, 4, bestSessionText, text_color = dashPositiveColor, text_size = dashTextSize, bgcolor = color.new(dashBgColor, dashBgTransp))
+f_draw_dashboard(dashTable)
 
 if barstate.islast and timeframe.in_seconds() != 180
     runtime.error("The Icon Frozen Option 2A must run on the 3-minute chart.")
