@@ -261,10 +261,17 @@ var float pnlLondon = 0.0
 var float pnlNYAM = 0.0
 var float pnlNYPM = 0.0
 
-f_eval_candidate() =>
-    if inKZ and not sessStarted and barstate.isconfirmed and not na(runHi) and not na(runLo)
-        bool newLow = low < runLo
-        bool newHigh = high > runHi
+f_eval_candidate(int v15N, float hiRun, float loRun, float pStop, bool pLong, string pSess, bool pOrder) =>
+    int v15CountTodayL = v15N
+    float runHiL = hiRun
+    float runLoL = loRun
+    float pendingStopL = pStop
+    bool pendingLongL = pLong
+    string pendingSessL = pSess
+    bool orderPendingL = pOrder
+    if inKZ and not sessStarted and barstate.isconfirmed and not na(runHiL) and not na(runLoL)
+        bool newLow = low < runLoL
+        bool newHigh = high > runHiL
         int n1 = array.size(c1)
         bool have3 = n1 >= 3 and array.size(o1) >= 3 and array.size(h1) >= 3 and array.size(l1) >= 3 and array.size(a1) >= 3
 
@@ -275,7 +282,7 @@ f_eval_candidate() =>
                 if exists
                     float sg = isLong ? 1.0 : -1.0
                     float extreme = isLong ? low : high
-                    float sweepDistance = isLong ? (runLo - low) : (high - runHi)
+                    float sweepDistance = isLong ? (runLoL - low) : (high - runHiL)
                     float rng = high - low
                     float wickPercent = rng > 0 ? (isLong ? (math.min(open, close)-low)/rng : (high-math.max(open, close))/rng) : 0.0
 
@@ -318,23 +325,27 @@ f_eval_candidate() =>
                             float score = f_v15_score(rejectionQuality, impulseToReclaim, reclaimToSweep, reversalImpulse, reclaimXWick, closeXReclaim, sweepMinusReclaim, impulseMinusReclaim, qualityBalance)
 
                             bool v15 = score >= V15_SCORE_THRESHOLD
-                            if v15 and v15CountToday < MAX_V15_PER_ET_DAY
-                                v15CountToday += 1
+                            if v15 and v15CountTodayL < MAX_V15_PER_ET_DAY
+                                v15CountTodayL += 1
                                 bool v27 = not (reclaim >= V27_RTH and reclaimXWick >= V27_WTH)
-                                if v27 and strategy.position_size == 0 and not orderPending
-                                    pendingStop := isLong ? extreme - 0.25 : extreme + 0.25
-                                    pendingLong := isLong
-                                    pendingSess := sessName
-                                    orderPending := true
+                                if v27 and strategy.position_size == 0 and not orderPendingL
+                                    pendingStopL := isLong ? extreme - 0.25 : extreme + 0.25
+                                    pendingLongL := isLong
+                                    pendingSessL := sessName
+                                    orderPendingL := true
                                     strategy.entry(isLong ? "IB Long" : "IB Short", isLong ? strategy.long : strategy.short, qty = 1)
 
     if inKZ and not sessStarted
-        runHi := math.max(runHi, high)
-        runLo := math.min(runLo, low)
+        runHiL := math.max(runHiL, high)
+        runLoL := math.min(runLoL, low)
+    [v15CountTodayL, runHiL, runLoL, pendingStopL, pendingLongL, pendingSessL, orderPendingL]
 
-f_handle_fill() =>
+f_handle_fill(int startedN, float pStop, bool pLong, string pSess, bool pOrder, TradeVis visIn) =>
+    int startedTradesL = startedN
+    bool orderPendingL = pOrder
+    TradeVis visOut = visIn
     int currentStartedTrades = strategy.closedtrades + strategy.opentrades
-    bool newFill = currentStartedTrades > startedTrades
+    bool newFill = currentStartedTrades > startedTradesL
     if newFill
         float actualEntry = na
         int actualEntryBar = na
@@ -347,66 +358,75 @@ f_handle_fill() =>
             actualEntry := strategy.closedtrades.entry_price(t)
             actualEntryBar := strategy.closedtrades.entry_bar_index(t)
 
-        stBull := pendingLong
-        stEntry := actualEntry
-        stStop := pendingStop
-        float riskDist = stBull ? stEntry - stStop : stStop - stEntry
-        stQty := f_qty(riskDist)
-        stTarget := stBull ? stEntry + riskDist * rrRatio : stEntry - riskDist * rrRatio
-        stSessName := pendingSess
-        startedTrades := currentStartedTrades
-        orderPending := false
+        bool stBullL = pLong
+        float stEntryL = actualEntry
+        float stStopL = pStop
+        float riskDist = stBullL ? stEntryL - stStopL : stStopL - stEntryL
+        float stQtyL = f_qty(riskDist)
+        float stTargetL = stBullL ? stEntryL + riskDist * rrRatio : stEntryL - riskDist * rrRatio
+        string stSessNameL = pSess
+        startedTradesL := currentStartedTrades
+        orderPendingL := false
 
         if riskDist > 0
             string closeMsg = pmtEnabled ? f_pmtClosePayload() : ""
-            if stBull
-                strategy.exit("IB Long Exit", "IB Long", stop = stStop, limit = stTarget, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
+            if stBullL
+                strategy.exit("IB Long Exit", "IB Long", stop = stStopL, limit = stTargetL, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
             else
-                strategy.exit("IB Short Exit", "IB Short", stop = stStop, limit = stTarget, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
+                strategy.exit("IB Short Exit", "IB Short", stop = stStopL, limit = stTargetL, comment_loss = "SL_HIT", comment_profit = "TP_HIT", alert_loss = closeMsg, alert_profit = closeMsg)
 
-            stVis := TradeVis.new()
+            visOut := TradeVis.new()
             if lblSH
-                float lblY = stBull ? stEntry - atrForStop * lblOffsetATR : stEntry + atrForStop * lblOffsetATR
-                color chipCol = stBull ? col_bullish : col_bearish
-                stVis.lbEntry := label.new(actualEntryBar, lblY, stBull ? "[ ▲ BUY ]" : "[ ▼ SELL ]", xloc.bar_index, yloc.price, color = color.new(color.black, 100), style = label.style_label_center, textcolor = chipCol, size = teLblSize)
+                float lblY = stBullL ? stEntryL - atrForStop * lblOffsetATR : stEntryL + atrForStop * lblOffsetATR
+                color chipCol = stBullL ? col_bullish : col_bearish
+                visOut.lbEntry := label.new(actualEntryBar, lblY, stBullL ? "[ ▲ BUY ]" : "[ ▼ SELL ]", xloc.bar_index, yloc.price, color = color.new(color.black, 100), style = label.style_label_center, textcolor = chipCol, size = teLblSize)
             if rrSH
-                float rTop = stBull ? stEntry : stStop
-                float rBtm = stBull ? stStop : stEntry
-                float wTop = stBull ? stTarget : stEntry
-                float wBtm = stBull ? stEntry : stTarget
-                stVis.bxRisk := box.new(actualEntryBar, rTop, bar_index, rBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRiskC)
-                stVis.bxReward := box.new(actualEntryBar, wTop, bar_index, wBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRewardC)
-                stVis.lnEntry := line.new(actualEntryBar, stEntry, bar_index, stEntry, xloc.bar_index, color = rrEntryC, style = line.style_dotted)
-                stVis.lnStop := line.new(actualEntryBar, stStop, bar_index, stStop, xloc.bar_index, color = rrStopC, style = line.style_solid)
-                stVis.lnTarget := line.new(actualEntryBar, stTarget, bar_index, stTarget, xloc.bar_index, color = rrTargetC, style = line.style_dashed)
-    newFill
+                float rTop = stBullL ? stEntryL : stStopL
+                float rBtm = stBullL ? stStopL : stEntryL
+                float wTop = stBullL ? stTargetL : stEntryL
+                float wBtm = stBullL ? stEntryL : stTargetL
+                visOut.bxRisk := box.new(actualEntryBar, rTop, bar_index, rBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRiskC)
+                visOut.bxReward := box.new(actualEntryBar, wTop, bar_index, wBtm, border_color = color(na), xloc = xloc.bar_index, bgcolor = rrRewardC)
+                visOut.lnEntry := line.new(actualEntryBar, stEntry, bar_index, stEntry, xloc.bar_index, color = rrEntryC, style = line.style_dotted)
+                visOut.lnStop := line.new(actualEntryBar, stStop, bar_index, stStop, xloc.bar_index, color = rrStopC, style = line.style_solid)
+                visOut.lnTarget := line.new(actualEntryBar, stTarget, bar_index, stTarget, xloc.bar_index, color = rrTargetC, style = line.style_dashed)
+    [newFill, startedTradesL, orderPendingL, stBullL, stEntryL, stStopL, stQtyL, stTargetL, stSessNameL, visOut]
 
-f_handle_closed_trade() =>
-    if strategy.closedtrades > processedClosedTrades
+f_handle_closed_trade(int processedN, float pnlDay, float pAsia, float pLondon, float pNYAM, float pNYPM, int wins, int losses, TradeVis visIn) =>
+    int processedL = processedN
+    float dayPnLL = pnlDay
+    float pnlAsiaL = pAsia
+    float pnlLondonL = pLondon
+    float pnlNYAML = pNYAM
+    float pnlNYPML = pNYPM
+    int dayWinsL = wins
+    int dayLossesL = losses
+    TradeVis visOut = visIn
+    if strategy.closedtrades > processedL
         int lastClosed = strategy.closedtrades - 1
         float closedProfit = strategy.closedtrades.profit(lastClosed)
         int closedExitBar = strategy.closedtrades.exit_bar_index(lastClosed)
-        dayPnL += closedProfit
+        dayPnLL += closedProfit
         if stSessName == "ASIA"
-            pnlAsia += closedProfit
+            pnlAsiaL += closedProfit
         else if stSessName == "LONDON"
-            pnlLondon += closedProfit
+            pnlLondonL += closedProfit
         else if stSessName == "NYAM"
-            pnlNYAM += closedProfit
+            pnlNYAML += closedProfit
         else if stSessName == "NYPM"
-            pnlNYPM += closedProfit
+            pnlNYPML += closedProfit
         if closedProfit > 0
-            dayWins += 1
+            dayWinsL += 1
         else if closedProfit < 0
-            dayLosses += 1
-        if not na(stVis)
-            if rrSH and not na(stVis.bxRisk)
+            dayLossesL += 1
+        if not na(visOut)
+            if rrSH and not na(visOut.bxRisk)
                 stVis.bxRisk.set_right(closedExitBar)
-                stVis.bxReward.set_right(closedExitBar)
-                stVis.lnEntry.set_x2(closedExitBar)
-                stVis.lnStop.set_x2(closedExitBar)
-                stVis.lnTarget.set_x2(closedExitBar)
-            visHist.unshift(stVis)
+                visOut.bxReward.set_right(closedExitBar)
+                visOut.lnEntry.set_x2(closedExitBar)
+                visOut.lnStop.set_x2(closedExitBar)
+                visOut.lnTarget.set_x2(closedExitBar)
+            visHist.unshift(visOut)
             if visHist.size() > rrKeep
                 TradeVis old = visHist.pop()
                 if not na(old.bxRisk)
@@ -421,8 +441,9 @@ f_handle_closed_trade() =>
                     old.lnTarget.delete()
                 if not na(old.lbEntry)
                     old.lbEntry.delete()
-        stVis := na
-        processedClosedTrades := strategy.closedtrades
+        visOut := na
+        processedL := strategy.closedtrades
+    [processedL, dayPnLL, pnlAsiaL, pnlLondonL, pnlNYAML, pnlNYPML, dayWinsL, dayLossesL, visOut]
 
 f_update_open_visuals() =>
     if rrSH and strategy.position_size != 0 and not na(stVis)
@@ -477,11 +498,38 @@ if sessStarted
     runHi := high
     runLo := low
 
-f_eval_candidate()
-bool newFill = f_handle_fill()
+[_v15N, _runHi, _runLo, _pStop, _pLong, _pSess, _pOrder] = f_eval_candidate(v15CountToday, runHi, runLo, pendingStop, pendingLong, pendingSess, orderPending)
+v15CountToday := _v15N
+runHi := _runHi
+runLo := _runLo
+pendingStop := _pStop
+pendingLong := _pLong
+pendingSess := _pSess
+orderPending := _pOrder
+
+[newFill, _started, _orderAfterFill, _stBull, _stEntry, _stStop, _stQty, _stTarget, _stSess, _stVis] = f_handle_fill(startedTrades, pendingStop, pendingLong, pendingSess, orderPending, stVis)
+startedTrades := _started
+orderPending := _orderAfterFill
+stBull := _stBull
+stEntry := _stEntry
+stStop := _stStop
+stQty := _stQty
+stTarget := _stTarget
+stSessName := _stSess
+stVis := _stVis
 if newFill
     dayTrades += 1
-f_handle_closed_trade()
+
+[_processed, _dayPnL, _pAsia, _pLondon, _pNYAM, _pNYPM, _wins, _losses, _closedVis] = f_handle_closed_trade(processedClosedTrades, dayPnL, pnlAsia, pnlLondon, pnlNYAM, pnlNYPM, dayWins, dayLosses, stVis)
+processedClosedTrades := _processed
+dayPnL := _dayPnL
+pnlAsia := _pAsia
+pnlLondon := _pLondon
+pnlNYAM := _pNYAM
+pnlNYPM := _pNYPM
+dayWins := _wins
+dayLosses := _losses
+stVis := _closedVis
 f_update_open_visuals()
 
 var table dashTable = table.new(dashPos, 2, 5, bgcolor = color.new(dashBgColor, dashBgTransp), frame_color = color.new(dashBorderColor, dashBorderTransp), frame_width = 1)
