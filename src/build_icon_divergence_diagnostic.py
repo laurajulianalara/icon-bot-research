@@ -28,6 +28,9 @@ var array<int> diagV15Times = array.new_int()
 var array<int> diagV15Dirs = array.new_int()
 var array<int> diagV15DayNums = array.new_int()
 var array<bool> diagV15Frozen = array.new_bool()
+var array<float> diagV15Scores = array.new_float()
+var array<float> diagV15Reclaims = array.new_float()
+var array<float> diagV15Wicks = array.new_float()
 
 f_diag_is_frozen(int t, int d) =>
     bool found = false
@@ -91,6 +94,9 @@ new = """                            bool v15 = score >= V15_SCORE_THRESHOLD
                                 array.push(diagV15Dirs, isLong ? 1 : -1)
                                 array.push(diagV15DayNums, v15CountTodayL + 1)
                                 array.push(diagV15Frozen, f_diag_is_frozen(time, isLong ? 1 : -1))
+                                array.push(diagV15Scores, score)
+                                array.push(diagV15Reclaims, reclaim)
+                                array.push(diagV15Wicks, wickPct)
                             if v15 and v15CountTodayL < MAX_V15_PER_ET_DAY
                                 if time >= AUDIT_START and time < AUDIT_END
                                     f_diag_hit(4, time, isLong ? 1 : -1)
@@ -178,3 +184,34 @@ print("AUDIT WINDOW: Sep 1-17, 2026 ET")
 print("LEFT TABLE: stage-by-stage divergence")
 print("RIGHT TABLE: final selection parity")
 print("Frozen 50 are comparison-only; strategy rules are unchanged.")
+
+
+// Sep 1 pre-cap sequence: expose exactly which Pine V15 events consumed
+// the six slots before the first blocked frozen trade at 04:57 ET.
+var table seqTable = table.new(position.bottom_right, 6, 9, border_width = 1)
+if barstate.islast
+    int targetDayStart = timestamp("America/New_York", 2026, 9, 1, 0, 0)
+    int blockedTime = timestamp("America/New_York", 2026, 9, 1, 4, 57)
+    table.cell(seqTable, 0, 0, "SEP 1 — PINE V15 BEFORE 04:57")
+    table.cell(seqTable, 1, 0, "Time")
+    table.cell(seqTable, 2, 0, "Dir")
+    table.cell(seqTable, 3, 0, "Frozen?")
+    table.cell(seqTable, 4, 0, "V15 score")
+    table.cell(seqTable, 5, 0, "Day #")
+    int row = 1
+    for ii = 0 to array.size(diagV15Times) - 1
+        int tt = array.get(diagV15Times, ii)
+        if tt >= targetDayStart and tt < blockedTime and row <= 7
+            table.cell(seqTable, 0, row, str.tostring(row))
+            table.cell(seqTable, 1, row, str.format_time(tt, "HH:mm", "America/New_York"))
+            table.cell(seqTable, 2, row, array.get(diagV15Dirs, ii) == 1 ? "LONG" : "SHORT")
+            table.cell(seqTable, 3, row, array.get(diagV15Frozen, ii) ? "YES" : "NO")
+            table.cell(seqTable, 4, row, str.tostring(array.get(diagV15Scores, ii), "#.######"))
+            table.cell(seqTable, 5, row, str.tostring(array.get(diagV15DayNums, ii)))
+            row += 1
+    table.cell(seqTable, 0, 8, "Blocked")
+    table.cell(seqTable, 1, 8, "04:57")
+    table.cell(seqTable, 2, 8, "LONG")
+    table.cell(seqTable, 3, 8, "YES")
+    table.cell(seqTable, 4, 8, "Python selected")
+    table.cell(seqTable, 5, 8, "Pine #7")
