@@ -4,12 +4,6 @@ from pathlib import Path
 REF = Path("data/icon_v15_pine_reference.json")
 OUT = Path("src/icon_v15_reference_generated.pine")
 
-if not REF.exists():
-    raise SystemExit(f"Missing {REF}")
-
-with REF.open() as f:
-    refs = json.load(f)
-
 ORDER = [
     "rejection_quality",
     "impulse_to_reclaim",
@@ -22,111 +16,107 @@ ORDER = [
     "quality_balance",
 ]
 
+refs = json.loads(REF.read_text())
+
+
 def compress(values):
-    """
-    Convert sorted empirical distribution into:
-      unique value
-      count below value
-      tie count
-
-    This preserves the frozen pandas-style percentile rank:
-        (below + (ties + 1) / 2) / N
-
-    For a new value not exactly present:
-        (below + 1) / N
-    """
     vals = sorted(float(x) for x in values)
-    n = len(vals)
-
     rows = []
-    i = 0
 
-    while i < n:
+    i = 0
+    while i < len(vals):
         value = vals[i]
         j = i + 1
 
-        while j < n and vals[j] == value:
+        while j < len(vals) and vals[j] == value:
             j += 1
 
-        rows.append((value, i, j - i))
+        rows.append((value, j - i))
         i = j
 
-    return n, rows
+    return len(vals), rows
 
 
 def fmt(x):
-    # 17 significant digits is enough to round-trip a Python float.
+    # Preserve round-trip Python float precision.
     return format(float(x), ".17g")
 
 
-def pine_array_float(name, values):
-    chunks = []
-
-    for i in range(0, len(values), 100):
-        part = ", ".join(fmt(x) for x in values[i:i+100])
-        chunks.append(part)
-
-    joined = ",\n    ".join(chunks)
-
-    return (
-        f"var array<float> {name} = array.from(\n"
-        f"    {joined}\n"
-        f")"
-    )
-
-
-def pine_array_int(name, values):
-    chunks = []
-
-    for i in range(0, len(values), 150):
-        part = ", ".join(str(int(x)) for x in values[i:i+150])
-        chunks.append(part)
-
-    joined = ",\n    ".join(chunks)
-
-    return (
-        f"var array<int> {name} = array.from(\n"
-        f"    {joined}\n"
-        f")"
-    )
-
-
-lines = []
-
-lines.append("// AUTO-GENERATED — DO NOT EDIT")
-lines.append("// THE ICON — Frozen V15 empirical percentile reference")
-lines.append("// Source: data/icon_v15_pine_reference.json")
-lines.append("// Frozen population: 1,477 V11 rows")
-lines.append("")
+lines = [
+    "// AUTO-GENERATED — DO NOT EDIT",
+    "// THE ICON — Compact Frozen V15 empirical reference",
+    "// Full precision values preserved.",
+    "// Counts reconstruct frozen tie/below behavior.",
+    "",
+]
 
 metadata = {}
 
 for idx, col in enumerate(ORDER):
     n, rows = compress(refs[col])
 
-    safe = f"v15_{idx}"
-
-    values = [r[0] for r in rows]
-    below  = [r[1] for r in rows]
-    ties   = [r[2] for r in rows]
+    values = ",".join(fmt(v) for v, _ in rows)
+    counts = ",".join(str(c) for _, c in rows)
 
     metadata[col] = {
         "n": n,
         "unique": len(rows),
     }
 
-    lines.append(f"// {col} | N={n} | UNIQUE={len(rows)}")
-    lines.append(pine_array_float(f"{safe}_values", values))
-    lines.append(pine_array_int(f"{safe}_below", below))
-    lines.append(pine_array_int(f"{safe}_ties", ties))
-    lines.append("")
+    # Store the distribution as text rather than thousands of Pine
+    # syntax-tree array elements. Pine reconstructs the arrays once.
+    lines += [
+        f'var string v15_{idx}_values_text = "{values}"',
+        f'var string v15_{idx}_counts_text = "{counts}"',
+        f"var array<float> v15_{idx}_values = array.new_float()",
+        f"var array<int> v15_{idx}_counts = array.new_int()",
+        "",
+    ]
+
+
+lines.append("""
+f_load_frozen_ref(
+    string valuesText,
+    string countsText,
+    array<float> values,
+    array<int> counts
+) =>
+    if array.size(values) == 0
+        array<string> vs = str.split(valuesText, ",")
+        array<string> cs = str.split(countsText, ",")
+
+        int sz = array.size(vs)
+
+        if sz > 0
+            for i = 0 to sz - 1
+                float v = str.tonumber(array.get(vs, i))
+                int c = int(str.tonumber(array.get(cs, i)))
+
+                array.push(values, v)
+                array.push(counts, c)
+""".strip())
+
+lines.append("")
+
+# Load once on the first chart bar.
+lines.append("if barstate.isfirst")
+
+for idx in range(len(ORDER)):
+    lines.append(
+        f"    f_load_frozen_ref("
+        f"v15_{idx}_values_text, "
+        f"v15_{idx}_counts_text, "
+        f"v15_{idx}_values, "
+        f"v15_{idx}_counts)"
+    )
+
+lines.append("")
 
 lines.append("""
 f_frozen_pct_rank(
     float x,
     array<float> values,
-    array<int> below,
-    array<int> ties,
+    array<int> counts,
     int n
 ) =>
     int sz = array.size(values)
@@ -144,15 +134,22 @@ f_frozen_pct_rank(
         else
             lo := mid + 1
 
+    int below = 0
+
+    if pos > 0
+        for k = 0 to pos - 1
+            below += array.get(counts, k)
+
     float rank = na
 
     if pos < sz and array.get(values, pos) == x
-        int b = array.get(below, pos)
-        int t = array.get(ties, pos)
-        rank := (b + (t + 1.0) / 2.0) / n
+        int ties = array.get(counts, pos)
+        rank := (below + (ties + 1.0) / 2.0) / n
     else
-        int b = pos < sz ? array.get(below, pos) : n
-        float ordinal = math.min(math.max(b + 1.0, 1.0), n)
+        float ordinal = math.min(
+            math.max(below + 1.0, 1.0),
+            n
+        )
         rank := ordinal / n
 
     rank
@@ -160,7 +157,7 @@ f_frozen_pct_rank(
 
 OUT.write_text("\n".join(lines) + "\n")
 
-print("=== ICON V15 PINE REFERENCE BUILD ===")
+print("=== ICON V15 COMPACT PINE BUILD ===")
 print("SOURCE:", REF)
 print("OUTPUT:", OUT)
 print()
@@ -177,4 +174,4 @@ print()
 print("GENERATED SIZE:", OUT.stat().st_size, "bytes")
 print("GENERATED LINES:", len(OUT.read_text().splitlines()))
 print()
-print("✅ Frozen V15 Pine reference generated.")
+print("✅ Compact frozen V15 reference generated.")

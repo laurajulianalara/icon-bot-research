@@ -222,15 +222,15 @@ ENGINE = r'''
 f_v15_score(float rejection_quality, float impulse_to_reclaim, float reclaim_to_sweep,
     float reversal_impulse, float reclaim_x_wick, float close_x_reclaim,
     float sweep_minus_reclaim, float impulse_minus_reclaim, float quality_balance) =>
-    p0 = f_frozen_pct_rank(rejection_quality, v15_0_values, v15_0_below, v15_0_ties, 1477)
-    p1 = f_frozen_pct_rank(impulse_to_reclaim, v15_1_values, v15_1_below, v15_1_ties, 1477)
-    p2 = f_frozen_pct_rank(reclaim_to_sweep, v15_2_values, v15_2_below, v15_2_ties, 1477)
-    p3 = f_frozen_pct_rank(reversal_impulse, v15_3_values, v15_3_below, v15_3_ties, 1477)
-    p4 = f_frozen_pct_rank(reclaim_x_wick, v15_4_values, v15_4_below, v15_4_ties, 1477)
-    p5 = f_frozen_pct_rank(close_x_reclaim, v15_5_values, v15_5_below, v15_5_ties, 1477)
-    p6 = f_frozen_pct_rank(sweep_minus_reclaim, v15_6_values, v15_6_below, v15_6_ties, 1477)
-    p7 = f_frozen_pct_rank(impulse_minus_reclaim, v15_7_values, v15_7_below, v15_7_ties, 1477)
-    p8 = f_frozen_pct_rank(quality_balance, v15_8_values, v15_8_below, v15_8_ties, 1477)
+    p0 = f_frozen_pct_rank(rejection_quality, v15_0_values, v15_0_counts, 1477)
+    p1 = f_frozen_pct_rank(impulse_to_reclaim, v15_1_values, v15_1_counts, 1477)
+    p2 = f_frozen_pct_rank(reclaim_to_sweep, v15_2_values, v15_2_counts, 1477)
+    p3 = f_frozen_pct_rank(reversal_impulse, v15_3_values, v15_3_counts, 1477)
+    p4 = f_frozen_pct_rank(reclaim_x_wick, v15_4_values, v15_4_counts, 1477)
+    p5 = f_frozen_pct_rank(close_x_reclaim, v15_5_values, v15_5_counts, 1477)
+    p6 = f_frozen_pct_rank(sweep_minus_reclaim, v15_6_values, v15_6_counts, 1477)
+    p7 = f_frozen_pct_rank(impulse_minus_reclaim, v15_7_values, v15_7_counts, 1477)
+    p8 = f_frozen_pct_rank(quality_balance, v15_8_values, v15_8_counts, 1477)
     (2*p0 + 2*p1 + (1-p2) + p3 + 2*(1-p4) + 2*(1-p5) + p6 + 2*p7 + 2*p8) / 15.0
 
 var int v15CountToday = 0
