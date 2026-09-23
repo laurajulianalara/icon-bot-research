@@ -44,20 +44,23 @@ var int auditExtra = 0
 AUDIT_START = timestamp("America/New_York", 2026, 9, 1, 0, 0)
 AUDIT_END = timestamp("America/New_York", 2026, 9, 18, 0, 0)
 
-f_audit_selection(int candidateTime, bool isLong) =>
+f_audit_selection(int candidateTime, bool isLong, int selectedIn, int matchedIn, int extraIn) =>
+    int selectedOut = selectedIn
+    int matchedOut = matchedIn
+    int extraOut = extraIn
     bool matched = false
     if candidateTime >= AUDIT_START and candidateTime < AUDIT_END
-        auditSelected += 1
+        selectedOut += 1
         int d = isLong ? 1 : -1
         for ai = 0 to 49
             if not array.get(auditMatched, ai) and array.get(auditTimes, ai) == candidateTime and array.get(auditDirs, ai) == d
                 array.set(auditMatched, ai, true)
-                auditMatchedCount += 1
+                matchedOut += 1
                 matched := true
                 break
         if not matched
-            auditExtra += 1
-    matched
+            extraOut += 1
+    [selectedOut, matchedOut, extraOut]
 
 """
 if needle not in pine:
@@ -69,7 +72,10 @@ old = """                                bool v27 = not (reclaim >= V27_RTH and 
 """
 new = """                                bool v27 = not (reclaim >= V27_RTH and reclaimXWick >= V27_WTH)
                                 if v27
-                                    f_audit_selection(time, isLong)
+                                    [_auditSelected, _auditMatched, _auditExtra] = f_audit_selection(time, isLong, auditSelected, auditMatchedCount, auditExtra)
+                                    auditSelected := _auditSelected
+                                    auditMatchedCount := _auditMatched
+                                    auditExtra := _auditExtra
                                 if v27 and strategy.position_size == 0 and not orderPendingL
 """
 if old not in pine:
