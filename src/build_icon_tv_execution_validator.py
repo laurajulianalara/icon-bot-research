@@ -103,13 +103,19 @@ if m > 0
                     array.set(age, n, a)
                     if stopHit
                         losses += 1
+                        array.set(tvOutcome, n, -1)
+                        array.set(exitTimes, n, bt)
                         array.set(done, n, true)
                         array.set(active, n, false)
                     else if targetHit
                         wins += 1
+                        array.set(tvOutcome, n, 1)
+                        array.set(exitTimes, n, bt)
                         array.set(done, n, true)
                         array.set(active, n, false)
                     else if a >= 241
+                        array.set(tvOutcome, n, 0)
+                        array.set(exitTimes, n, bt)
                         array.set(done, n, true)
                         array.set(active, n, false)
 
