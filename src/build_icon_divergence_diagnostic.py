@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 
 BASE = Path("src/icon_selection_parity.pine")
-OUT = Path("src/icon_divergence_diagnostic.pine")
+OUT = Path("src/icon_divergence_v2.pine")
 
 subprocess.run(["python", "src/build_icon_selection_parity.py"], check=True)
 pine = BASE.read_text()
@@ -211,7 +211,7 @@ if barstate.islast
 """
 pine += seq_tail
 OUT.write_text(pine)\n
-print("CREATED", OUT)
+print("CREATED", OUT)\nprint("VERSION: DIVERGENCE V2 — SEP1 SEQUENCE TABLE INCLUDED")
 print("AUDIT WINDOW: Sep 1-17, 2026 ET")
 print("LEFT TABLE: stage-by-stage divergence")
 print("RIGHT TABLE: final selection parity")
