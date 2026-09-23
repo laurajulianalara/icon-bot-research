@@ -143,7 +143,7 @@ for n = 0 to 49
 int unresolved = started - wins - losses
 float wr = wins + losses > 0 ? 100.0 * wins / (wins + losses) : na
 
-var table t = table.new(position.top_right, 2, 11, border_width=1)
+var table t = table.new(position.top_right, 2, 8, border_width=1)
 if barstate.islast
     table.cell(t, 0, 0, "TV DATA PARITY")
     table.cell(t, 1, 0, str.tostring(rr) + "R")
@@ -157,6 +157,10 @@ if barstate.islast
     table.cell(t, 1, 4, str.tostring(unresolved))
     table.cell(t, 0, 5, "Win rate")
     table.cell(t, 1, 5, na(wr) ? "n/a" : str.tostring(wr, "#.00") + "%")
+    table.cell(t, 0, 6, "Mismatches")
+    table.cell(t, 1, 6, str.tostring(mismatchCount))
+    table.cell(t, 0, 7, "Mismatch")
+    table.cell(t, 1, 7, mismatchCount == 0 ? "NONE" : mismatchText, text_size=size.tiny)
 
 if barstate.islast and timeframe.in_seconds() != 180
     runtime.error("Run this validator on the 3-minute MNQ continuous chart.")
