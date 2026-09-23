@@ -45,7 +45,7 @@ library("{title}", overlay = false)
 export rank(float x) =>
     var array<float> values = array.new_float()
     var array<int> counts = array.new_int()
-    if barstate.isfirst and array.size(values) == 0
+    if array.size(values) == 0
         array<string> vs = str.split("{values_text}", ",")
         array<string> cs = str.split("{counts_text}", ",")
         for k = 0 to array.size(vs) - 1
