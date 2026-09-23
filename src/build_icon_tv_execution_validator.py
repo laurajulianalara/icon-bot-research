@@ -69,10 +69,12 @@ var array<float> exitHighs = array.new_float(50, na)
 var array<bool> active = array.new_bool(50, false)
 var array<bool> done = array.new_bool(50, false)
 var array<int> age = array.new_int(50, 0)
+var array<float> basisOffset = array.new_float(50, na)
 var int wins = 0
 var int losses = 0
 var int started = 0\nvar int tvMarker = 0\nvar int tvWinsMarked = 0\nvar int tvLossesMarked = 0
 
+array<float> op1 = request.security_lower_tf(syminfo.tickerid, "1", open)
 array<float> lo1 = request.security_lower_tf(syminfo.tickerid, "1", low)
 array<float> hi1 = request.security_lower_tf(syminfo.tickerid, "1", high)
 array<int> tm1 = request.security_lower_tf(syminfo.tickerid, "1", time)
@@ -88,15 +90,26 @@ int m = array.size(tm1)
 if m > 0
     for j = 0 to m - 1
         int bt = array.get(tm1, j)
+        float bo = array.get(op1, j)
         float bl = array.get(lo1, j)
         float bh = array.get(hi1, j)
         for n = 0 to 49
             if array.get(active, n) and not array.get(done, n)
                 int et = array.get(entryTimes, n)
                 if bt >= et
-                    float ep = array.get(frozenEntries, n)
-                    float st = array.get(frozenStops, n)
+                    float frozenEp = array.get(frozenEntries, n)
+                    float frozenSt = array.get(frozenStops, n)
                     int d = array.get(directions, n)
+                    // Frozen entry is the canonical 1m entry-bar open. On the
+                    // first TradingView intrabar, measure the continuous-series
+                    // price-basis difference and translate the whole trade by
+                    // that same offset. Risk distance and RR stay unchanged.
+                    float off = array.get(basisOffset, n)
+                    if na(off)
+                        off := bo - frozenEp
+                        array.set(basisOffset, n, off)
+                    float ep = frozenEp + off
+                    float st = frozenSt + off
                     float risk = d == 1 ? ep - st : st - ep
                     float tg = d == 1 ? ep + rr * risk : ep - rr * risk
                     bool stopHit = d == 1 ? bl <= st : bh >= st
@@ -139,16 +152,19 @@ for n = 0 to 49
             mismatchCount += 1
             int et = array.get(entryTimes, n)
             int xt = array.get(exitTimes, n)
-            float ep = array.get(frozenEntries, n)
-            float st = array.get(frozenStops, n)
+            float frozenEp = array.get(frozenEntries, n)
+            float frozenSt = array.get(frozenStops, n)
+            float off = array.get(basisOffset, n)
             int d = array.get(directions, n)
+            float ep = frozenEp + nz(off, 0)
+            float st = frozenSt + nz(off, 0)
             float riskPts = d == 1 ? ep - st : st - ep
             float tg = d == 1 ? ep + rr * riskPts : ep - rr * riskPts
             string expS = expected == 1 ? "WIN" : expected == -1 ? "LOSS" : "OPEN"
             string actS = actual == 1 ? "WIN" : actual == -1 ? "LOSS" : "OPEN"
             float xlo = array.get(exitLows, n)
             float xhi = array.get(exitHighs, n)
-            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + " H " + str.tostring(xhi) + " L " + str.tostring(xlo) + " | "
+            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | OFF " + str.tostring(off) + " E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + " H " + str.tostring(xhi) + " L " + str.tostring(xlo) + " | "
 
 int unresolved = started - wins - losses
 float wr = wins + losses > 0 ? 100.0 * wins / (wins + losses) : na
