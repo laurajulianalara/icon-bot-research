@@ -64,6 +64,8 @@ var array<int> frozen5 = array.from({outcome_cols[4]})
 var array<int> frozen6 = array.from({outcome_cols[5]})
 var array<int> tvOutcome = array.new_int(50, 0)
 var array<int> exitTimes = array.new_int(50, 0)
+var array<float> exitLows = array.new_float(50, na)
+var array<float> exitHighs = array.new_float(50, na)
 var array<bool> active = array.new_bool(50, false)
 var array<bool> done = array.new_bool(50, false)
 var array<int> age = array.new_int(50, 0)
@@ -104,18 +106,18 @@ if m > 0
                     if stopHit
                         losses += 1
                         array.set(tvOutcome, n, -1)
-                        array.set(exitTimes, n, bt)
+                        array.set(exitTimes, n, bt)\n                        array.set(exitLows, n, bl)\n                        array.set(exitHighs, n, bh)
                         array.set(done, n, true)
                         array.set(active, n, false)
                     else if targetHit
                         wins += 1
                         array.set(tvOutcome, n, 1)
-                        array.set(exitTimes, n, bt)
+                        array.set(exitTimes, n, bt)\n                        array.set(exitLows, n, bl)\n                        array.set(exitHighs, n, bh)
                         array.set(done, n, true)
                         array.set(active, n, false)
                     else if a >= 241
                         array.set(tvOutcome, n, 0)
-                        array.set(exitTimes, n, bt)
+                        array.set(exitTimes, n, bt)\n                        array.set(exitLows, n, bl)\n                        array.set(exitHighs, n, bh)
                         array.set(done, n, true)
                         array.set(active, n, false)
 
@@ -144,7 +146,9 @@ for n = 0 to 49
             float tg = d == 1 ? ep + rr * riskPts : ep - rr * riskPts
             string expS = expected == 1 ? "WIN" : expected == -1 ? "LOSS" : "OPEN"
             string actS = actual == 1 ? "WIN" : actual == -1 ? "LOSS" : "OPEN"
-            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + " | "
+            float xlo = array.get(exitLows, n)
+            float xhi = array.get(exitHighs, n)
+            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + " H " + str.tostring(xhi) + " L " + str.tostring(xlo) + " | "
 
 int unresolved = started - wins - losses
 float wr = wins + losses > 0 ? 100.0 * wins / (wins + losses) : na
