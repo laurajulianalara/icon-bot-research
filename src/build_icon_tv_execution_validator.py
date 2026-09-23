@@ -29,6 +29,21 @@ times = ",".join(str(ms(x)) for x in df["entry_time"])
 entries = ",".join(format(float(x), ".10g") for x in df["entry"])
 stops = ",".join(format(float(x), ".10g") for x in df["stop"])
 dirs = ",".join("1" if x == "LONG" else "-1" for x in df["direction"])
+# Frozen canonical outcomes per RR, encoded 1=WIN, -1=LOSS, 0=OPEN.
+outcome_cols = []
+for rr_i in range(1, 7):
+    candidates = [f"outcome_{rr_i}r", f"{rr_i}R_outcome", f"rr{rr_i}_outcome"]
+    col = next((x for x in candidates if x in df.columns), None)
+    if col is None:
+        # Master historically uses simple 1R..6R labels in some revisions.
+        col = next((x for x in df.columns if str(x).lower().replace("_","") in {f"{rr_i}r", f"outcome{rr_i}r"}), None)
+    if col is None:
+        raise KeyError(f"Could not find frozen outcome column for {rr_i}R. Columns: {list(df.columns)}")
+    vals = []
+    for x in df[col].astype(str).str.upper():
+        vals.append("1" if x == "WIN" else "-1" if x == "LOSS" else "0")
+    outcome_cols.append(",".join(vals))
+frozen_outcomes = ";".join(outcome_cols)
 
 pine = f'''//@version=6
 strategy("THE ICON — TV BACKTEST PARITY VALIDATOR", overlay=true, pyramiding=0,
@@ -41,6 +56,14 @@ var array<int> entryTimes = array.from({times})
 var array<float> frozenEntries = array.from({entries})
 var array<float> frozenStops = array.from({stops})
 var array<int> directions = array.from({dirs})
+var array<int> frozen1 = array.from({outcome_cols[0]})
+var array<int> frozen2 = array.from({outcome_cols[1]})
+var array<int> frozen3 = array.from({outcome_cols[2]})
+var array<int> frozen4 = array.from({outcome_cols[3]})
+var array<int> frozen5 = array.from({outcome_cols[4]})
+var array<int> frozen6 = array.from({outcome_cols[5]})
+var array<int> tvOutcome = array.new_int(50, 0)
+var array<int> exitTimes = array.new_int(50, 0)
 var array<bool> active = array.new_bool(50, false)
 var array<bool> done = array.new_bool(50, false)
 var array<int> age = array.new_int(50, 0)
@@ -95,10 +118,32 @@ if m > 0
 // We do NOT create synthetic Strategy Tester trades because their P&L/WR would
 // be misleading. Dollar benchmark P&L is calculated from fixed $300 risk below.
 
+f_frozen(int n) =>
+    rr == 1 ? array.get(frozen1, n) : rr == 2 ? array.get(frozen2, n) : rr == 3 ? array.get(frozen3, n) : rr == 4 ? array.get(frozen4, n) : rr == 5 ? array.get(frozen5, n) : array.get(frozen6, n)
+
+int mismatchCount = 0
+string mismatchText = ""
+for n = 0 to 49
+    if array.get(done, n)
+        int expected = f_frozen(n)
+        int actual = array.get(tvOutcome, n)
+        if expected != actual
+            mismatchCount += 1
+            int et = array.get(entryTimes, n)
+            int xt = array.get(exitTimes, n)
+            float ep = array.get(frozenEntries, n)
+            float st = array.get(frozenStops, n)
+            int d = array.get(directions, n)
+            float riskPts = d == 1 ? ep - st : st - ep
+            float tg = d == 1 ? ep + rr * riskPts : ep - rr * riskPts
+            string expS = expected == 1 ? "WIN" : expected == -1 ? "LOSS" : "OPEN"
+            string actS = actual == 1 ? "WIN" : actual == -1 ? "LOSS" : "OPEN"
+            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + "\n"
+
 int unresolved = started - wins - losses
 float wr = wins + losses > 0 ? 100.0 * wins / (wins + losses) : na
 
-var table t = table.new(position.top_right, 2, 9, border_width=1)
+var table t = table.new(position.top_right, 2, 11, border_width=1)
 if barstate.islast
     table.cell(t, 0, 0, "TV DATA PARITY")
     table.cell(t, 1, 0, str.tostring(rr) + "R")
