@@ -98,10 +98,10 @@ f_load_frozen_ref(
 
 lines.append("")
 
-# Load once on the first chart bar.
-lines.append("if barstate.isfirst")
-
+# Load each frozen reference through its own tiny first-bar block.
+# Pine can reject one large if block after inlining f_load_frozen_ref().
 for idx in range(len(ORDER)):
+    lines.append("if barstate.isfirst")
     lines.append(
         f"    f_load_frozen_ref("
         f"v15_{idx}_values_text, "
@@ -109,8 +109,7 @@ for idx in range(len(ORDER)):
         f"v15_{idx}_values, "
         f"v15_{idx}_counts)"
     )
-
-lines.append("")
+    lines.append("")
 
 lines.append("""
 f_frozen_pct_rank(
