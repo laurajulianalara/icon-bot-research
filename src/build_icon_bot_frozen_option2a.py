@@ -8,15 +8,15 @@ v15 = ""
 HEADER = r'''//@version=6
 strategy("Icon Bot", "Icon Bot", overlay = true, pyramiding = 0, process_orders_on_close = false, calc_on_order_fills = false, calc_on_every_tick = true, use_bar_magnifier = true, default_qty_type = strategy.fixed, initial_capital = 1000000, margin_long = 1, margin_short = 1, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500, max_bars_back = 5000)
 
-import laurajulianaaa/IconV15_0/1 as v15_0
-import laurajulianaaa/IconV15_1/1 as v15_1
-import laurajulianaaa/IconV15_2/1 as v15_2
-import laurajulianaaa/IconV15_3/1 as v15_3
-import laurajulianaaa/IconV15_4/1 as v15_4
-import laurajulianaaa/IconV15_5/1 as v15_5
-import laurajulianaaa/IconV15_6/1 as v15_6
-import laurajulianaaa/IconV15_7/1 as v15_7
-import laurajulianaaa/IconV15_8/1 as v15_8
+import laurajulianaaa/IconV15_0/2 as v15_0
+import laurajulianaaa/IconV15_1/2 as v15_1
+import laurajulianaaa/IconV15_2/2 as v15_2
+import laurajulianaaa/IconV15_3/2 as v15_3
+import laurajulianaaa/IconV15_4/2 as v15_4
+import laurajulianaaa/IconV15_5/2 as v15_5
+import laurajulianaaa/IconV15_6/2 as v15_6
+import laurajulianaaa/IconV15_7/2 as v15_7
+import laurajulianaaa/IconV15_8/2 as v15_8
 
 // THE ICON — FROZEN OPTION 2A
 // Strategy engine only is replaced. Existing session/visual/risk/PMT settings retained.
