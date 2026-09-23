@@ -205,7 +205,7 @@ atr3 = ta.sma(tr3, 20)
 
 // 1m causal features. These expressions are calculated in 1m context, then returned
 // as arrays for the three constituent minutes of each 3m bar.
-[o1, h1, l1, c1, a1, d1, d6] = request.security_lower_tf(syminfo.tickerid, "1", [
+[o1, h1, l1, c1, a1, d1, bull6, bear6] = request.security_lower_tf(syminfo.tickerid, "1", [
     open,
     high,
     low,
