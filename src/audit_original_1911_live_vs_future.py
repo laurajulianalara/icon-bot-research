@@ -24,7 +24,7 @@ refs=cand[cand["is_reference"].astype(int)==1].copy()
 
 dircol="direction"
 refs["future_dependent"]=False
-refs["future_extreme_time"]=pd.NaT
+refs["future_extreme_time"]=None
 
 group_cols=[c for c in ["session","session_date","date"] if c in cand.columns]
 if not group_cols:
@@ -45,7 +45,7 @@ for i,r in refs.iterrows():
     future=[x for x in times if x>t and x<=cutoff]
     if future:
         refs.at[i,"future_dependent"]=True
-        refs.at[i,"future_extreme_time"]=future[0]
+        refs.at[i,"future_extreme_time"]=future[0].isoformat()
 
 n=len(refs); fut=int(refs.future_dependent.sum()); live=n-fut
 print()
