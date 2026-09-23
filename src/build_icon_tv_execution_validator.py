@@ -138,7 +138,7 @@ for n = 0 to 49
             float tg = d == 1 ? ep + rr * riskPts : ep - rr * riskPts
             string expS = expected == 1 ? "WIN" : expected == -1 ? "LOSS" : "OPEN"
             string actS = actual == 1 ? "WIN" : actual == -1 ? "LOSS" : "OPEN"
-            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + "\n"
+            mismatchText += "#" + str.tostring(n + 1) + " " + str.format_time(et, "MM/dd HH:mm", "America/New_York") + " " + (d == 1 ? "LONG" : "SHORT") + " | E " + str.tostring(ep) + " S " + str.tostring(st) + " T " + str.tostring(tg) + " | PY " + expS + " / TV " + actS + " | exit " + str.format_time(xt, "MM/dd HH:mm", "America/New_York") + " | "
 
 int unresolved = started - wins - losses
 float wr = wins + losses > 0 ? 100.0 * wins / (wins + losses) : na
