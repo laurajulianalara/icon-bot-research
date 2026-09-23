@@ -35,7 +35,7 @@ strategy("THE ICON — TV BACKTEST PARITY VALIDATOR", overlay=true, pyramiding=0
      process_orders_on_close=false, calc_on_order_fills=false, calc_on_every_tick=false,
      default_qty_type=strategy.fixed, default_qty_value=1, initial_capital=1000000)
 
-rr = input.int(4, "RR to validate", minval=1, maxval=6)
+rr = input.int(4, "RR to validate", minval=1, maxval=6)\nriskDollars = input.float(300.0, "Risk per trade ($)", minval=1.0, step=25.0)\npointValue = 2.0  // MNQ = $2 per point per contract
 
 var array<int> entryTimes = array.from({times})
 var array<float> frozenEntries = array.from({entries})
@@ -46,7 +46,7 @@ var array<bool> done = array.new_bool(50, false)
 var array<int> age = array.new_int(50, 0)
 var int wins = 0
 var int losses = 0
-var int started = 0\nvar int tvMarker = 0
+var int started = 0\nvar int tvMarker = 0\nvar int tvWinsMarked = 0\nvar int tvLossesMarked = 0
 
 array<float> lo1 = request.security_lower_tf(syminfo.tickerid, "1", low)
 array<float> hi1 = request.security_lower_tf(syminfo.tickerid, "1", high)
@@ -90,20 +90,15 @@ if m > 0
                         array.set(done, n, true)
                         array.set(active, n, false)
 
-// Add one synthetic closed Strategy Tester trade per canonical resolved trade.
-// These markers are intentionally tiny and exist ONLY so TradingView's
-// Strategy Tester displays the same W/L counts as the independent 1m replay.
-// The parity table remains the authoritative execution comparison.
-int resolvedNow = wins + losses
-if resolvedNow > tvMarker
-    strategy.entry("TV Marker", strategy.long, qty=1)
-    strategy.close("TV Marker", immediately=true)
-    tvMarker := resolvedNow
+// Strategy Tester cannot represent overlapping canonical positions in one net
+// position. The table above is therefore the authoritative 50-trade parity test.
+// We do NOT create synthetic Strategy Tester trades because their P&L/WR would
+// be misleading. Dollar benchmark P&L is calculated from fixed $300 risk below.
 
 int unresolved = started - wins - losses
 float wr = wins + losses > 0 ? 100.0 * wins / (wins + losses) : na
 
-var table t = table.new(position.top_right, 2, 7, border_width=1)
+var table t = table.new(position.top_right, 2, 9, border_width=1)
 if barstate.islast
     table.cell(t, 0, 0, "TV DATA PARITY")
     table.cell(t, 1, 0, str.tostring(rr) + "R")
