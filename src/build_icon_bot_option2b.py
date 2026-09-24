@@ -330,14 +330,15 @@ f_eval_candidate(int finalN, float hiRun, float loRun, float pStop, bool pLong, 
                             float score = f_v15_score(rejectionQuality, impulseToReclaim, reclaimToSweep, reversalImpulse, reclaimXWick, closeXReclaim, sweepMinusReclaim, impulseMinusReclaim, qualityBalance)
 
                             bool v15 = score >= V15_SCORE_THRESHOLD
-                            if v15 and finalTradesTodayL < MAX_V15_PER_ET_DAY
-                                finalTradesTodayL += 1
+                            if v15
                                 bool v27 = not (reclaim >= V27_RTH and reclaimXWick >= V27_WTH)
-                                if v27 and strategy.position_size == 0 and not orderPendingL
+                                // OPTION 2B: only a final valid entry consumes a daily slot.
+                                if v27 and finalTradesTodayL < MAX_FINAL_TRADES_PER_ET_DAY and strategy.position_size == 0 and not orderPendingL
                                     pendingStopL := isLong ? extreme - 0.25 : extreme + 0.25
                                     pendingLongL := isLong
                                     pendingSessL := sessName
                                     orderPendingL := true
+                                    finalTradesTodayL += 1
                                     strategy.entry(isLong ? "IB Long" : "IB Short", isLong ? strategy.long : strategy.short, qty = 1)
 
     if inKZ and not sessStarted
