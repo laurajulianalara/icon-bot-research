@@ -750,6 +750,11 @@ for _, c in cand.iterrows():
         "quality_balance": quality_balance,
     }
 
+    # Sep 21 diagnostic: print every V8 survivor and each later decision.
+    trace_sep21 = str(c.time_ny.date()) == "2026-09-21"
+    if trace_sep21:
+        print("SEP21 V8 PASS |", c.time_ny, "|", c.session, "|", c.direction)
+
     # --------------------------------------------------------
     # V15 ELIGIBILITY
     # --------------------------------------------------------
@@ -769,7 +774,9 @@ for _, c in cand.iterrows():
     if historical_candidate:
         # Exact historical V15 decision.
         if key not in v15_allowed:
+            if trace_sep21: print("  DROP historical V15 membership")
             continue
+        if trace_sep21: print("  PASS historical V15 membership")
 
         v15_score = (
             float(historical_ref_row["score"])
@@ -785,8 +792,11 @@ for _, c in cand.iterrows():
         if not np.isfinite(v15_score):
             continue
 
+        if trace_sep21: print("  forward V15 score", round(float(v15_score),6), "| threshold", V15_SCORE_THRESHOLD)
         if v15_score < V15_SCORE_THRESHOLD:
+            if trace_sep21: print("  DROP forward V15")
             continue
+        if trace_sep21: print("  PASS forward V15")
 
     # --------------------------------------------------------
     # FROZEN 6/DAY CAP — AFTER V15, BEFORE V27
@@ -801,7 +811,9 @@ for _, c in cand.iterrows():
     v27_pass = not (reclaim >= RTH and rw >= WTH)
 
 
+    if trace_sep21: print("  V15 SLOT", slot_num, "| V27", "PASS" if v27_pass else "FAIL")
     if slot_num > 6:
+        if trace_sep21: print("  DROP 6/day cap")
         continue
 
     # --------------------------------------------------------
@@ -809,6 +821,7 @@ for _, c in cand.iterrows():
     # --------------------------------------------------------
 
     if not v27_pass:
+        if trace_sep21: print("  DROP V27")
         continue
 
     j = i+3
@@ -818,9 +831,11 @@ for _, c in cand.iterrows():
         pd.notna(c.next_same_extreme_time)
         and signal >= c.next_same_extreme_time
     ):
+        if trace_sep21: print("  DROP superseded | signal", signal, "| next", c.next_same_extreme_time)
         continue
 
     if one.iloc[j].ticker != c.ticker:
+        if trace_sep21: print("  DROP ticker mismatch")
         continue
 
     entry = float(one.iloc[j].open)
@@ -836,6 +851,8 @@ for _, c in cand.iterrows():
         if c.direction == "LONG"
         else stop-entry
     )
+
+    if trace_sep21: print("  FINAL TRADE | signal", signal, "| entry", entry, "| stop", stop, "| risk", risk)
 
     outcomes = {}
 
