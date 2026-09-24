@@ -61,7 +61,7 @@ old = """                if exists
 """
 new = """                if exists
                     if time >= AUDIT_START and time < AUDIT_END
-                        f_candidate_audit(time, isLong ? 1 : -1, isLong ? runLow : runHigh, isLong ? low : high)
+                        f_candidate_audit(time, isLong ? 1 : -1, previousExtreme, extreme)
                     float sg = isLong ? 1.0 : -1.0
 """
 if old not in pine:
