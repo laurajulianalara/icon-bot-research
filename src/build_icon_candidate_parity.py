@@ -51,6 +51,11 @@ var array<int> pyCandDirs = array.from({candidate_dirs})
 var array<bool> pyCandMatched = array.new_bool(686, false)
 var array<int> extraCandTimes = array.new_int()
 var array<int> extraCandDirs = array.new_int()
+var array<int> extraByDay = array.new_int(17, 0)
+
+f_audit_day_index(int t) =>
+    int d = dayofmonth(t, "America/New_York")
+    d >= 1 and d <= 17 ? d - 1 : -1
 
 f_candidate_audit(int t, int d) =>
     int found = -1
@@ -60,9 +65,13 @@ f_candidate_audit(int t, int d) =>
             break
     if found >= 0
         array.set(pyCandMatched, found, true)
-    else if array.size(extraCandTimes) < 12
-        array.push(extraCandTimes, t)
-        array.push(extraCandDirs, d)
+    else
+        int di = f_audit_day_index(t)
+        if di >= 0
+            array.set(extraByDay, di, array.get(extraByDay, di) + 1)
+        if array.size(extraCandTimes) < 12
+            array.push(extraCandTimes, t)
+            array.push(extraCandDirs, d)
 
 
 f_diag_is_frozen(int t, int d) =>
@@ -261,10 +270,30 @@ if barstate.islast
 """
 pine += candidate_tail
 
+day_tail = r"""
+var table dayTable = table.new(position.top_right, 4, 19, border_width = 1)
+if barstate.islast
+    table.cell(dayTable, 0, 0, "CANDIDATE MISMATCH BY DAY")
+    table.cell(dayTable, 1, 0, "Date")
+    table.cell(dayTable, 2, 0, "Extra")
+    table.cell(dayTable, 3, 0, "Missing")
+    for di = 0 to 16
+        int miss = 0
+        for jj = 0 to 685
+            int tt = array.get(pyCandTimes, jj)
+            if dayofmonth(tt, "America/New_York") == di + 1 and not array.get(pyCandMatched, jj)
+                miss += 1
+        table.cell(dayTable, 0, di + 1, str.tostring(di + 1))
+        table.cell(dayTable, 1, di + 1, "Sep " + str.tostring(di + 1))
+        table.cell(dayTable, 2, di + 1, str.tostring(array.get(extraByDay, di)))
+        table.cell(dayTable, 3, di + 1, str.tostring(miss))
+"""
+pine += day_tail
+
 OUT.write_text(pine)
 
 print("CREATED", OUT)
-print("VERSION: CANDIDATE PARITY — 686 PYTHON CANDIDATES")
+print("VERSION: CANDIDATE PARITY V2 — DAILY MISMATCH MAP")
 print("AUDIT WINDOW: Sep 1-17, 2026 ET")
 print("LEFT TABLE: stage-by-stage divergence")
 print("RIGHT TABLE: final selection parity")
