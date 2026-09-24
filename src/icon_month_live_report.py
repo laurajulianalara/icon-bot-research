@@ -836,19 +836,6 @@ for _, c in cand.iterrows():
         else stop-entry
     )
 
-    if str(date_et) == "2026-09-21":
-        print(
-            "SEP21 TRACE |", c.time_ny, "|", c.session, "|", c.direction,
-            "| score", round(float(v15_score), 6),
-            "| slot", slot_num,
-            "| cap", "PASS" if slot_num <= 6 else "BLOCK",
-            "| V27", "PASS" if v27_pass else "FAIL",
-            "| next_extreme", c.next_same_extreme_time,
-            "| signal", signal,
-            "| ticker", c.ticker, "/", one.iloc[j].ticker,
-            "| entry", entry, "| stop", stop, "| risk", risk
-        )
-
     outcomes = {}
 
     for rr in range(1,7):
@@ -907,6 +894,27 @@ tr = pd.DataFrame(trades)
 
 if tr.empty:
     raise RuntimeError("No frozen Option 2A trades found this month.")
+
+# R-excursion (MFE) using canonical 241-minute window and stop-first ordering.
+mfe_rows = []
+for _, t in tr.iterrows():
+    j = idx1.get(t.entry_time)
+    if j is None: continue
+    entry, stop, risk = float(t.entry), float(t.stop), float(t.risk_points)
+    direction, ticker = str(t.direction), one.iloc[j].ticker
+    best = 0.0; stop_time = pd.NaT; end_time = one.iloc[j].time_ny
+    for q in range(j, min(j+241, len(one))):
+        bar = one.iloc[q]
+        if bar.ticker != ticker: break
+        end_time = bar.time_ny
+        stopped = float(bar.low) <= stop if direction=="LONG" else float(bar.high) >= stop
+        if stopped:
+            stop_time = bar.time_ny
+            break
+        fav = float(bar.high)-entry if direction=="LONG" else entry-float(bar.low)
+        best = max(best, fav)
+    mfe_rows.append({"date":t.date,"session":t.session,"direction":direction,"entry_time":t.entry_time,"risk_points":risk,"max_favorable_points":best,"max_R":best/risk if risk>0 else np.nan,"stop_time":stop_time,"analysis_end":end_time})
+mfe = pd.DataFrame(mfe_rows)
 
 # ------------------------------------------------------------
 # DAILY REPORT
@@ -1018,6 +1026,18 @@ daily_path = f"data/reports/{tag}_daily_report.csv"
 
 tr.to_csv(trade_path, index=False)
 daily.to_csv(daily_path, index=False)
+
+mfe_path = f"data/reports/{tag}_r_excursion.csv"
+mfe.to_csv(mfe_path,index=False)
+print("\n=== R-EXCURSION / MAX FAVORABLE EXCURSION ===")
+if not mfe.empty:
+    v=mfe.max_R.dropna()
+    print(f"Trades analyzed: {len(v)} | Average: {v.mean():.2f}R | Median: {v.median():.2f}R | Highest: {v.max():.2f}R")
+    for level in [1,2,3,4,5,6,8,10,15,20]:
+        n=int((v>=level).sum()); print(f"Reached {level}R+: {n}/{len(v)} ({100*n/len(v):.1f}%)")
+    print("\nTOP 10 RUNNERS")
+    print(mfe.nlargest(10,"max_R")[["date","session","direction","entry_time","risk_points","max_R"]].round({"risk_points":2,"max_R":2}).to_string(index=False))
+print("Saved:",mfe_path)
 
 # Compact screen table
 display_cols = ["Date","Trades"]
