@@ -290,6 +290,39 @@ if barstate.islast
 """
 pine += day_tail
 
+
+// Sep 15 exact mismatch table: audit-only, no strategy logic changes.
+sep15_tail = r"""
+var table sep15Table = table.new(position.middle_right, 3, 10, border_width = 1)
+if barstate.islast
+    int sep15Start = timestamp("America/New_York", 2026, 9, 15, 0, 0)
+    int sep16Start = timestamp("America/New_York", 2026, 9, 16, 0, 0)
+    table.cell(sep15Table, 0, 0, "SEP 15 EXACT MISMATCHES")
+    table.cell(sep15Table, 1, 0, "Time")
+    table.cell(sep15Table, 2, 0, "Dir")
+    int rr = 1
+    table.cell(sep15Table, 0, rr, "PINE EXTRA")
+    rr += 1
+    for jj = 0 to array.size(extraCandTimes) - 1
+        int tt = array.get(extraCandTimes, jj)
+        if tt >= sep15Start and tt < sep16Start and rr < 5
+            table.cell(sep15Table, 0, rr, "Extra")
+            table.cell(sep15Table, 1, rr, str.format_time(tt, "HH:mm", "America/New_York"))
+            table.cell(sep15Table, 2, rr, array.get(extraCandDirs, jj) == 1 ? "LONG" : "SHORT")
+            rr += 1
+    if rr < 5
+        table.cell(sep15Table, 0, rr, "PY MISSING")
+        rr += 1
+    for jj = 0 to 685
+        int tt = array.get(pyCandTimes, jj)
+        if tt >= sep15Start and tt < sep16Start and not array.get(pyCandMatched, jj) and rr < 10
+            table.cell(sep15Table, 0, rr, "Missing")
+            table.cell(sep15Table, 1, rr, str.format_time(tt, "HH:mm", "America/New_York"))
+            table.cell(sep15Table, 2, rr, array.get(pyCandDirs, jj) == 1 ? "LONG" : "SHORT")
+            rr += 1
+"""
+pine += sep15_tail
+
 OUT.write_text(pine)
 
 print("CREATED", OUT)
