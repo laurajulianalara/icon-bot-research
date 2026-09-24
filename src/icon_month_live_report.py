@@ -942,6 +942,33 @@ for date, x in tr.groupby("date", sort=True):
 
 daily = pd.DataFrame(daily_rows)
 
+# Keep zero-trade market dates visible in the daily report.
+# This changes reporting only — never strategy selection or P&L logic.
+market_dates = sorted(
+    pd.Series(month_data.loc[month_data.time_ny <= latest_market_time, "time_ny"].dt.date)
+    .drop_duplicates()
+    .astype(str)
+    .tolist()
+)
+reported_dates = set(daily["Date"].astype(str)) if not daily.empty else set()
+zero_rows = []
+for d in market_dates:
+    if d in reported_dates:
+        continue
+    row = {"Date": d, "Trades": 0}
+    for rr in range(1,7):
+        row[f"{rr}R Wins"] = 0
+        row[f"{rr}R Losses"] = 0
+        row[f"{rr}R Open"] = 0
+        row[f"{rr}R WR"] = np.nan
+        row[f"{rr}R PnL"] = 0
+    zero_rows.append(row)
+
+if zero_rows:
+    daily = pd.concat([daily, pd.DataFrame(zero_rows)], ignore_index=True)
+    daily["_sort_date"] = pd.to_datetime(daily["Date"], errors="coerce")
+    daily = daily.sort_values("_sort_date").drop(columns="_sort_date").reset_index(drop=True)
+
 # MONTH TOTAL
 total = {
     "Date": "MONTH TOTAL",
