@@ -836,8 +836,18 @@ for _, c in cand.iterrows():
         else stop-entry
     )
 
-    if risk <= 0:
-        continue
+    if str(date_et) == "2026-09-21":
+        print(
+            "SEP21 TRACE |", c.time_ny, "|", c.session, "|", c.direction,
+            "| score", round(float(v15_score), 6),
+            "| slot", slot_num,
+            "| cap", "PASS" if slot_num <= 6 else "BLOCK",
+            "| V27", "PASS" if v27_pass else "FAIL",
+            "| next_extreme", c.next_same_extreme_time,
+            "| signal", signal,
+            "| ticker", c.ticker, "/", one.iloc[j].ticker,
+            "| entry", entry, "| stop", stop, "| risk", risk
+        )
 
     outcomes = {}
 
