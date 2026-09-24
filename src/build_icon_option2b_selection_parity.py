@@ -22,9 +22,7 @@ defs=f"""// OPTION 2B SELECTION PARITY — SEP 1-17 2026
 var array<int> auditTimes = array.from({times})
 var array<int> auditDirs = array.from({dirs})
 var array<bool> auditMatched = array.new_bool({N}, false)
-var int auditSelected = 0
-var int auditMatchedCount = 0
-var int auditExtra = 0
+var array<int> auditCounts = array.from(0, 0, 0) // selected, matched, extra
 AUDIT_START = timestamp("America/New_York", 2026, 9, 1, 0, 0)
 AUDIT_END = timestamp("America/New_York", 2026, 9, 18, 0, 0)
 
