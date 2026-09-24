@@ -36,7 +36,7 @@ candidate_dirs = ",".join("1" if str(x).upper() == "LONG" else "-1" for x in can
 # Global arrays are intentionally used here because Pine functions may mutate
 # array contents without illegally reassigning global scalar variables.
 needle = "// Frozen thresholds\n"
-defs = r"""// DIVERGENCE DIAGNOSTIC
+defs = f"""// DIVERGENCE DIAGNOSTIC
 // diagTotal / diagFrozen use indexes:
 // 0 Candidate, 1 V7, 2 V8, 3 V15, 4 6/day, 5 V27.
 var array<int> diagTotal = array.new_int(6, 0)
