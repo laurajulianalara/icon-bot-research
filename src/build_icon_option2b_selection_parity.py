@@ -35,24 +35,24 @@ old="""                                    finalTradesTodayL += 1
                                     strategy.entry(isLong ? "IB Long" : "IB Short", isLong ? strategy.long : strategy.short, qty = 1)"""
 new=f"""                                    finalTradesTodayL += 1
                                     if time >= AUDIT_START and time < AUDIT_END
-                                        auditSelected += 1
+                                        array.set(auditCounts, 0, array.get(auditCounts, 0) + 1)
                                         int auditD = isLong ? 1 : -1
                                         bool auditFound = false
                                         for auditI = 0 to {N-1}
                                             if not array.get(auditMatched, auditI) and array.get(auditTimes, auditI) == time and array.get(auditDirs, auditI) == auditD
                                                 array.set(auditMatched, auditI, true)
-                                                auditMatchedCount += 1
+                                                array.set(auditCounts, 1, array.get(auditCounts, 1) + 1)
                                                 auditFound := true
                                                 break
                                         if not auditFound
-                                            auditExtra += 1
+                                            array.set(auditCounts, 2, array.get(auditCounts, 2) + 1)
                                     strategy.entry(isLong ? "IB Long" : "IB Short", isLong ? strategy.long : strategy.short, qty = 1)"""
 if old not in pine: raise SystemExit("final entry insertion point missing")
 pine=pine.replace(old,new,1)
 pine+=f"""
 var table auditTable = table.new(position.middle_right, 2, 7, border_width=1)
 if barstate.islast
-    int auditMissing = {N} - auditMatchedCount
+    int auditMatchedCount = array.get(auditCounts, 1)\n    int auditSelected = array.get(auditCounts, 0)\n    int auditExtra = array.get(auditCounts, 2)\n    int auditMissing = {N} - auditMatchedCount
     float auditPct = {N} > 0 ? 100.0 * auditMatchedCount / {N}.0 : na
     table.cell(auditTable,0,0,"OPTION 2B — SELECTION PARITY")
     table.cell(auditTable,1,0,"SEP 1–17")
