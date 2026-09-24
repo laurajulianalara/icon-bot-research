@@ -37,9 +37,9 @@ var array<int> pyCandTimes = array.from({candidate_times})
 var array<int> pyCandDirs = array.from({candidate_dirs})
 var array<bool> pyCandMatched = array.new_bool(686, false)
 var array<int> extraCandTimes = array.new_int()
-var array<int> extraCandDirs = array.new_int()
+var array<int> extraCandDirs = array.new_int()\nvar array<float> extraCandPrior = array.new_float()\nvar array<float> extraCandExtreme = array.new_float()
 
-f_candidate_audit(int t, int d) =>
+f_candidate_audit(int t, int d, float prior, float ext) =>
     int found = -1
     for jj = 0 to 685
         if array.get(pyCandTimes, jj) == t and array.get(pyCandDirs, jj) == d
@@ -61,7 +61,7 @@ old = """                if exists
 """
 new = """                if exists
                     if time >= AUDIT_START and time < AUDIT_END
-                        f_candidate_audit(time, isLong ? 1 : -1)
+                        f_candidate_audit(time, isLong ? 1 : -1, isLong ? runLow : runHigh, isLong ? low : high)
                     float sg = isLong ? 1.0 : -1.0
 """
 if old not in pine:
@@ -69,13 +69,13 @@ if old not in pine:
 pine = pine.replace(old, new, 1)
 
 sep15_tail = r'''
-var table sep15Table = table.new(position.middle_right, 3, 10, border_width = 1)
+var table sep15Table = table.new(position.middle_right, 5, 10, border_width = 1)
 if barstate.islast
     int sep15Start = timestamp("America/New_York", 2026, 9, 15, 0, 0)
     int sep16Start = timestamp("America/New_York", 2026, 9, 16, 0, 0)
     table.cell(sep15Table, 0, 0, "SEP 15 EXACT MISMATCHES")
     table.cell(sep15Table, 1, 0, "Time")
-    table.cell(sep15Table, 2, 0, "Dir")
+    table.cell(sep15Table, 2, 0, "Dir")\n    table.cell(sep15Table, 3, 0, "TV prior")\n    table.cell(sep15Table, 4, 0, "TV extreme")
 
     int rr = 1
     table.cell(sep15Table, 0, rr, "PINE EXTRA")
@@ -86,7 +86,7 @@ if barstate.islast
         if tt >= sep15Start and tt < sep16Start and rr < 5
             table.cell(sep15Table, 0, rr, "Extra")
             table.cell(sep15Table, 1, rr, str.format_time(tt, "HH:mm", "America/New_York"))
-            table.cell(sep15Table, 2, rr, array.get(extraCandDirs, jj) == 1 ? "LONG" : "SHORT")
+            table.cell(sep15Table, 2, rr, array.get(extraCandDirs, jj) == 1 ? "LONG" : "SHORT")\n            table.cell(sep15Table, 3, rr, str.tostring(array.get(extraCandPrior, jj)))\n            table.cell(sep15Table, 4, rr, str.tostring(array.get(extraCandExtreme, jj)))
             rr += 1
 
     if rr < 5
@@ -106,6 +106,6 @@ pine += sep15_tail
 OUT.write_text(pine)
 
 print("CREATED", OUT)
-print("VERSION: CANDIDATE PARITY V3 — SEP 15 ONLY")
-print("DISPLAY: one Sep 15 exact mismatch table only")
+print("VERSION: CANDIDATE PARITY V4 — SEP 15 STATE")
+print("DISPLAY: Sep 15 mismatches + TradingView prior/extreme state")
 print("Frozen/Python candidates are comparison-only; strategy rules are unchanged.")
