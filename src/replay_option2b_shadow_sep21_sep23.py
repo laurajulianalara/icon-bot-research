@@ -35,11 +35,9 @@ if replay.empty:raise RuntimeError("No Sep 21-23 data. Run python src/icon_month
 
 print("="*72);print("THE ICON — OPTION 2B PROGRESSIVE SHADOW REPLAY | SEP 21-23");print("="*72)
 print("Replay candles:",len(replay));print("Orders: DISABLED")
-# Do not print every considered candidate. Only final daily snapshot below.
 for _,bar in replay.iterrows():
     context=pd.concat([context,pd.DataFrame([bar])],ignore_index=True)
 
-# Final replay selection from exactly the data available through Sep 23.
 got=pd.DataFrame(live.evaluate(context))
 if not got.empty:got["entry_time"]=pd.to_datetime(got.entry_time_et)
 got=got[(got.entry_time>=START)&(got.entry_time<END)].copy() if not got.empty else got
@@ -63,7 +61,10 @@ if got.empty:
 both=m[m._merge=="both"];missing=m[m._merge=="left_only"];extra=m[m._merge=="right_only"]
 entry_ok=(both.entry_expected.astype(float)-both.entry_shadow.astype(float)).abs()<1e-9
 stop_ok=(both.stop_expected.astype(float)-both.stop_shadow.astype(float)).abs()<1e-9
-risk_ok=(both.risk.astype(float)-both.risk_points.astype(float)).abs()<1e-9
+# After merge, expected report risk and shadow risk_points are distinct names.
+expected_risk_col="risk_expected" if "risk_expected" in both.columns else "risk"
+shadow_risk_col="risk_points"
+risk_ok=(both[expected_risk_col].astype(float)-both[shadow_risk_col].astype(float)).abs()<1e-9
 print("\nExpected:",len(exp),"Replay:",len(got),"Matched:",len(both),"Missing:",len(missing),"Extra:",len(extra))
 print("Entry exact:",int(entry_ok.sum()),"/",len(both),"| Stop exact:",int(stop_ok.sum()),"/",len(both),"| Risk exact:",int(risk_ok.sum()),"/",len(both))
 ok=len(exp)==len(got) and missing.empty and extra.empty and entry_ok.all() and stop_ok.all() and risk_ok.all()
