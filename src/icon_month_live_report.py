@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 # ============================================================
 # THE ICON — PERMANENT CURRENT-MONTH REPORTER
-# Frozen Option 2A logic | $300 risk | RR 1:1 through 1:6
+# FINAL Option 2B | 6 FINAL valid trades/day | $300 risk | RR 1:1 through 1:6
 # ============================================================
 
 HIST = "data/mnq_continuous_1m.parquet"
@@ -117,7 +117,7 @@ need = ["time_ny","ticker","open","high","low","close","volume"]
 
 print("\n============================================================")
 print("THE ICON — CURRENT MONTH REPORT")
-print("Frozen Option 2A | Risk: $300 | RR: 1:1 through 1:6")
+print("Option 2B | 6 FINAL valid trades/day | Risk: $300 | RR: 1:1 through 1:6")
 print("============================================================")
 print("Month:", month_start.strftime("%B %Y"))
 print("Today:", now.strftime("%Y-%m-%d %H:%M:%S ET"))
@@ -587,9 +587,9 @@ def forward_v15_score(features):
 
 trades = []
 
-# Frozen Option 2A: first six V15-pass candidates per ET calendar day
-# consume the daily slots BEFORE V27 is applied.
-v15_slots_by_day = {}
+# OPTION 2B ONLY CHANGE:
+# The daily cap counts FINAL canonical valid entries, not V15 survivors.
+final_trades_by_day = {}
 
 for _, c in cand.iterrows():
 
@@ -799,27 +799,12 @@ for _, c in cand.iterrows():
         if trace_sep21: print("  PASS forward V15")
 
     # --------------------------------------------------------
-    # FROZEN 6/DAY CAP — AFTER V15, BEFORE V27
+    # V27 — unchanged from Option 2A
     # --------------------------------------------------------
-    date_et = c.time_ny.date()
-    slot_num = v15_slots_by_day.get(date_et, 0) + 1
-    v15_slots_by_day[date_et] = slot_num
-
-    # Temporary Sep 23 audit: show every V15 survivor, including
-    # candidates later blocked by the six/day cap or V27.
     rw = reclaim * float(c.wick_percent)
     v27_pass = not (reclaim >= RTH and rw >= WTH)
 
-
-    if trace_sep21: print("  V15 SLOT", slot_num, "| V27", "PASS" if v27_pass else "FAIL")
-    if slot_num > 6:
-        if trace_sep21: print("  DROP 6/day cap")
-        continue
-
-    # --------------------------------------------------------
-    # V27 OPTION 2A — frozen thresholds
-    # --------------------------------------------------------
-
+    if trace_sep21: print("  V27", "PASS" if v27_pass else "FAIL")
     if not v27_pass:
         if trace_sep21: print("  DROP V27")
         continue
@@ -852,7 +837,17 @@ for _, c in cand.iterrows():
         else stop-entry
     )
 
-    if trace_sep21: print("  FINAL TRADE | signal", signal, "| entry", entry, "| stop", stop, "| risk", risk)
+    # --------------------------------------------------------
+    # OPTION 2B 6/DAY CAP — only FINAL valid entries count.
+    # --------------------------------------------------------
+    date_et = signal.date()
+    final_slot = final_trades_by_day.get(date_et, 0) + 1
+    if final_slot > 6:
+        if trace_sep21: print("  DROP 2B final-trade 6/day cap")
+        continue
+    final_trades_by_day[date_et] = final_slot
+
+    if trace_sep21: print("  FINAL 2B TRADE", final_slot, "| signal", signal, "| entry", entry, "| stop", stop, "| risk", risk)
 
     outcomes = {}
 
