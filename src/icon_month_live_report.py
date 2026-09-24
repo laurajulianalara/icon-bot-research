@@ -794,6 +794,19 @@ for _, c in cand.iterrows():
     slot_num = v15_slots_by_day.get(date_et, 0) + 1
     v15_slots_by_day[date_et] = slot_num
 
+    # Temporary Sep 23 audit: show every V15 survivor, including
+    # candidates later blocked by the six/day cap or V27.
+    rw = reclaim * float(c.wick_percent)
+    v27_pass = not (reclaim >= RTH and rw >= WTH)
+    if str(date_et) == "2026-09-23":
+        print(
+            "SEP23 V15 |", c.time_ny, "|", c.session, "|", c.direction,
+            "| score", round(float(v15_score), 6),
+            "| slot", slot_num,
+            "| cap", "PASS" if slot_num <= 6 else "BLOCK",
+            "| V27", "PASS" if v27_pass else "FAIL"
+        )
+
     if slot_num > 6:
         continue
 
@@ -801,9 +814,7 @@ for _, c in cand.iterrows():
     # V27 OPTION 2A — frozen thresholds
     # --------------------------------------------------------
 
-    rw = reclaim * float(c.wick_percent)
-
-    if reclaim >= RTH and rw >= WTH:
+    if not v27_pass:
         continue
 
     j = i+3
