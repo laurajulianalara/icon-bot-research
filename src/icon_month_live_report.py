@@ -798,21 +798,7 @@ for _, c in cand.iterrows():
     # candidates later blocked by the six/day cap or V27.
     rw = reclaim * float(c.wick_percent)
     v27_pass = not (reclaim >= RTH and rw >= WTH)
-    if str(date_et) == "2026-09-23":
-        print(
-            "SEP23 V15 |", c.time_ny, "|", c.session, "|", c.direction,
-            "| score", round(float(v15_score), 6),
-            "| slot", slot_num,
-            "| cap", "PASS" if slot_num <= 6 else "BLOCK",
-            "| V27", "PASS" if v27_pass else "FAIL",
-            "| next_extreme", c.next_same_extreme_time,
-            "| planned_signal", one.iloc[i+3].time_ny,
-            "| cand_ticker", c.ticker,
-            "| signal_ticker", one.iloc[i+3].ticker,
-            "| planned_entry", float(one.iloc[i+3].open),
-            "| extreme", float(c.extreme),
-            "| planned_risk", ((float(one.iloc[i+3].open)-(float(c.extreme)-.25)) if c.direction=="LONG" else ((float(c.extreme)+.25)-float(one.iloc[i+3].open)))
-        )
+
 
     if slot_num > 6:
         continue
@@ -852,6 +838,18 @@ for _, c in cand.iterrows():
 
     if risk <= 0:
         continue
+
+    # Temporary full forward audit: every candidate that survives the
+    # complete frozen Option 2A selection pipeline must appear here.
+    if c.time_ny.date() > max(ref["candidate_time_et"].dt.date):
+        print(
+            "FORWARD FINAL |", c.time_ny, "|", c.session, "|", c.direction,
+            "| V15 slot", slot_num,
+            "| signal", signal,
+            "| entry", entry,
+            "| stop", stop,
+            "| risk", risk
+        )
 
     outcomes = {}
 
