@@ -493,23 +493,24 @@ if Path(V11_PATH).exists():
     ref["score"] = pd.concat(parts,axis=1).mean(axis=1)
     score_threshold = ref.score.quantile(.07)
 
-    ref = ref[ref.score >= score_threshold].copy()
-
-    ref["date_et"] = ref.candidate_time_et.dt.date
-    ref = ref.sort_values("candidate_time_et").reset_index(drop=True)
-    ref["trade_num_day"] = ref.groupby("date_et").cumcount()+1
-    ref = ref[ref.trade_num_day <= 6].copy()
+    # IMPORTANT: keep the full 1,477-row V11 population immutable for
+    # forward percentile scoring. Historical eligibility is a separate copy.
+    v15_ref_full = ref.copy()
+    hist_ref = ref[ref.score >= score_threshold].copy()
+    hist_ref["date_et"] = hist_ref.candidate_time_et.dt.date
+    hist_ref = hist_ref.sort_values("candidate_time_et").reset_index(drop=True)
+    hist_ref["trade_num_day"] = hist_ref.groupby("date_et").cumcount()+1
+    hist_ref = hist_ref[hist_ref.trade_num_day <= 6].copy()
 
     v15_allowed = set(
         zip(
-            ref.candidate_time_et.astype(str),
-            ref.direction.astype(str)
+            hist_ref.candidate_time_et.astype(str),
+            hist_ref.direction.astype(str)
         )
     )
 
-    print(
-        f"Frozen V15 reference loaded: {len(v15_allowed)} eligible trades"
-    )
+    print(f"Frozen V15 scoring population: {len(v15_ref_full)} rows")
+    print(f"Frozen V15 historical eligible set: {len(v15_allowed)} trades")
 else:
     print(
         "WARNING: V11 reference missing — historical parity "
@@ -565,7 +566,7 @@ def frozen_pct_rank(series, value):
 
 
 def forward_v15_score(features):
-    if "ref" not in globals():
+    if "v15_ref_full" not in globals():
         return np.nan
 
     components = []
@@ -573,7 +574,7 @@ def forward_v15_score(features):
     for col, hi, weight in V15_SPEC:
         value = features.get(col, np.nan)
 
-        pct = frozen_pct_rank(ref[col], value)
+        pct = frozen_pct_rank(v15_ref_full[col], value)
 
         if not np.isfinite(pct):
             return np.nan
