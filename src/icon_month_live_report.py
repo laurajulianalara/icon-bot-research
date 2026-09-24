@@ -464,18 +464,29 @@ if Path(V11_PATH).exists():
     ref["sweep_minus_reclaim"] = (
         ref.sweep_atr - ref.early_reclaim_atr
     )
+    ref["reversal_impulse"] = -ref.m2_move_atr
     ref["impulse_minus_reclaim"] = (
         ref.reversal_impulse - ref.early_reclaim_atr
+    )
+    ref["reclaim_to_sweep"] = (
+        ref.early_reclaim_atr / (ref.sweep_atr.abs()+.05)
+    )
+    ref["impulse_to_reclaim"] = (
+        ref.reversal_impulse / (ref.early_reclaim_atr.abs()+.05)
+    )
+    ref["rejection_quality"] = (
+        (1-ref.m2_close_pos.clip(0,1))
+        * (1-ref.wick_percent.clip(0,1))
     )
     ref["quality_balance"] = (
         ref.rejection_quality
         * ref.impulse_to_reclaim
-        / (1 + ref.reclaim_to_sweep)
+        / (1+ref.reclaim_to_sweep)
     )
 
     parts = []
 
-    for col, hi, weight in [
+    for col, hi, w in [
         ("rejection_quality",1,2),
         ("impulse_to_reclaim",1,2),
         ("reclaim_to_sweep",0,1),
@@ -486,17 +497,15 @@ if Path(V11_PATH).exists():
         ("impulse_minus_reclaim",1,2),
         ("quality_balance",1,2),
     ]:
-        rank = ref[col].rank(pct=True)
-        component = rank if hi else 1-rank
-        parts += [component] * weight
+        r = ref[col].rank(pct=True)
+        comp = r if hi else 1-r
+        parts += [comp] * w
 
-    ref["score"] = pd.concat(parts,axis=1).mean(axis=1)
-    score_threshold = ref.score.quantile(.07)
-
-    ref = ref[ref.score >= score_threshold].copy()
-
+    ref["score"] = pd.concat(parts, axis=1).mean(axis=1)
+    thr = ref.score.quantile(.07)
+    ref = ref[ref.score >= thr].copy()
+    ref = ref.sort_values("candidate_time_et").copy()
     ref["date_et"] = ref.candidate_time_et.dt.date
-    ref = ref.sort_values("candidate_time_et").reset_index(drop=True)
     ref["trade_num_day"] = ref.groupby("date_et").cumcount()+1
     ref = ref[ref.trade_num_day <= 6].copy()
 
@@ -586,6 +595,10 @@ def forward_v15_score(features):
 
 trades = []
 
+# Frozen Option 2A rule: V15 survivors consume a global maximum of
+# six slots per ET calendar day BEFORE V27 is applied.
+v15_slots_by_day = {}
+
 for _, c in cand.iterrows():
 
     i = idx1.get(c.time_ny)
@@ -672,12 +685,6 @@ for _, c in cand.iterrows():
 
     reversal_impulse = -vals["m2_move_atr"]
 
-    # Exact original candidate-generator sweep calculation.
-    # sweep_distance was captured against the running session
-    # extreme BEFORE that extreme was updated.
-    # V15 sweep_atr uses the candidate's ORIGINAL 3-minute ATR.
-    # Do NOT use `a` here: `a` is the 1-minute ATR required by
-    # the V7 m1/m2 feature calculations above.
     candidate_atr = float(c.atr)
 
     sweep_atr = (
@@ -686,8 +693,6 @@ for _, c in cand.iterrows():
         else np.nan
     )
 
-    # If this candidate exists in frozen V11, use its exact original
-    # sweep_atr. This preserves exact historical parity.
     historical_ref_row = None
 
     if "ref" in globals():
@@ -706,27 +711,11 @@ for _, c in cand.iterrows():
                 sweep_atr = float(historical_ref_row["sweep_atr"])
 
     reclaim_to_sweep = reclaim/(abs(sweep_atr)+.05)
-
-    impulse_to_reclaim = (
-        reversal_impulse/(abs(reclaim)+.05)
-    )
-
-    reclaim_x_wick = (
-        reclaim * float(c.wick_percent)
-    )
-
-    close_x_reclaim = (
-        vals["m2_close_pos"] * reclaim
-    )
-
-    sweep_minus_reclaim = (
-        sweep_atr-reclaim
-    )
-
-    impulse_minus_reclaim = (
-        reversal_impulse-reclaim
-    )
-
+    impulse_to_reclaim = reversal_impulse/(abs(reclaim)+.05)
+    reclaim_x_wick = reclaim * float(c.wick_percent)
+    close_x_reclaim = vals["m2_close_pos"] * reclaim
+    sweep_minus_reclaim = sweep_atr-reclaim
+    impulse_minus_reclaim = reversal_impulse-reclaim
     quality_balance = (
         rejection_quality
         * impulse_to_reclaim
@@ -750,19 +739,16 @@ for _, c in cand.iterrows():
     # --------------------------------------------------------
 
     key = (str(c.time_ny), str(c.direction))
-
     historical_candidate = False
 
     if v15_allowed is not None:
         all_ref_dates = ref["candidate_time_et"].dt.date
-
         if len(all_ref_dates):
             historical_candidate = (
                 c.time_ny.date() <= max(all_ref_dates)
             )
 
     if historical_candidate:
-        # Exact historical V15 decision.
         if key not in v15_allowed:
             continue
 
@@ -774,7 +760,6 @@ for _, c in cand.iterrows():
         )
 
     else:
-        # New candidate: score against frozen V11 distribution.
         v15_score = forward_v15_score(v15_features)
 
         if not np.isfinite(v15_score):
@@ -782,6 +767,16 @@ for _, c in cand.iterrows():
 
         if v15_score < V15_SCORE_THRESHOLD:
             continue
+
+    # --------------------------------------------------------
+    # FROZEN 6/DAY CAP — AFTER V15, BEFORE V27
+    # --------------------------------------------------------
+    date_et = c.time_ny.date()
+    slot_num = v15_slots_by_day.get(date_et, 0) + 1
+    v15_slots_by_day[date_et] = slot_num
+
+    if slot_num > 6:
+        continue
 
     # --------------------------------------------------------
     # V27 OPTION 2A — frozen thresholds
@@ -824,7 +819,6 @@ for _, c in cand.iterrows():
     outcomes = {}
 
     for rr in range(1,7):
-
         target = (
             entry + rr*risk
             if c.direction == "LONG"
@@ -834,7 +828,6 @@ for _, c in cand.iterrows():
         outcome = "OPEN"
 
         for q in range(j, min(j+241, len(one))):
-
             b = one.iloc[q]
 
             if b.ticker != c.ticker:
@@ -852,7 +845,6 @@ for _, c in cand.iterrows():
                 else float(b.low) <= target
             )
 
-            # Canonical conservative ordering: stop first.
             if stop_hit:
                 outcome = "LOSS"
                 break
@@ -864,7 +856,7 @@ for _, c in cand.iterrows():
         outcomes[f"{rr}R"] = outcome
 
     trades.append({
-        "date": signal.date().isoformat(),
+        "date": c.time_ny.date(),
         "session": c.session,
         "candidate_time": c.time_ny,
         "entry_time": signal,
@@ -872,118 +864,67 @@ for _, c in cand.iterrows():
         "entry": entry,
         "stop": stop,
         "risk_points": risk,
-        **outcomes
+        **outcomes,
     })
 
 tr = pd.DataFrame(trades)
 
 if tr.empty:
-    raise RuntimeError("No frozen Option 2A trades found this month.")
+    raise RuntimeError("No trades found.")
+
+tr = tr.sort_values("candidate_time").reset_index(drop=True)
 
 # ------------------------------------------------------------
-# DAILY REPORT
-# OPEN outcomes are NOT counted as losses.
+# DAILY / MONTHLY REPORT
 # ------------------------------------------------------------
 
-daily_rows = []
+rows = []
 
 for date, x in tr.groupby("date", sort=True):
-
-    row = {
-        "Date": date,
-        "Trades": len(x)
-    }
+    row = {"Date": str(date), "Trades": len(x)}
 
     for rr in range(1,7):
+        col = f"{rr}R"
+        resolved = x[x[col].isin(["WIN","LOSS"])]
+        wins = int((resolved[col] == "WIN").sum())
+        losses = int((resolved[col] == "LOSS").sum())
+        n = wins + losses
 
-        s = x[f"{rr}R"]
+        wr = (100*wins/n) if n else np.nan
+        pnl = (wins*rr - losses) * RISK_DOLLARS
 
-        w = int((s=="WIN").sum())
-        l = int((s=="LOSS").sum())
-        o = int((s=="OPEN").sum())
-
-        resolved = w+l
-
-        wr = (
-            100*w/resolved
-            if resolved else np.nan
-        )
-
-        pnl = (
-            w*(rr*RISK_DOLLARS)
-            - l*RISK_DOLLARS
-        )
-
-        row[f"{rr}R Wins"] = w
-        row[f"{rr}R Losses"] = l
-        row[f"{rr}R Open"] = o
         row[f"{rr}R WR"] = wr
         row[f"{rr}R PnL"] = pnl
 
-    daily_rows.append(row)
+    rows.append(row)
 
-daily = pd.DataFrame(daily_rows)
+report = pd.DataFrame(rows)
 
-# MONTH TOTAL
-total = {
-    "Date": "MONTH TOTAL",
-    "Trades": len(tr)
-}
+month_row = {"Date":"MONTH TOTAL", "Trades":len(tr)}
 
 for rr in range(1,7):
+    col = f"{rr}R"
+    resolved = tr[tr[col].isin(["WIN","LOSS"])]
+    wins = int((resolved[col] == "WIN").sum())
+    losses = int((resolved[col] == "LOSS").sum())
+    n = wins + losses
+    month_row[f"{rr}R WR"] = (100*wins/n) if n else np.nan
+    month_row[f"{rr}R PnL"] = (wins*rr - losses)*RISK_DOLLARS
 
-    s = tr[f"{rr}R"]
-
-    w = int((s=="WIN").sum())
-    l = int((s=="LOSS").sum())
-    o = int((s=="OPEN").sum())
-
-    resolved = w+l
-
-    total[f"{rr}R Wins"] = w
-    total[f"{rr}R Losses"] = l
-    total[f"{rr}R Open"] = o
-    total[f"{rr}R WR"] = (
-        100*w/resolved if resolved else np.nan
-    )
-    total[f"{rr}R PnL"] = (
-        w*(rr*RISK_DOLLARS)
-        - l*RISK_DOLLARS
-    )
-
-daily = pd.concat(
-    [daily, pd.DataFrame([total])],
-    ignore_index=True
-)
-
-tag = now.strftime("%Y-%m")
-
-trade_path = f"data/reports/{tag}_trades.csv"
-daily_path = f"data/reports/{tag}_daily_report.csv"
-
-tr.to_csv(trade_path, index=False)
-daily.to_csv(daily_path, index=False)
-
-# Compact screen table
-display_cols = ["Date","Trades"]
-
-for rr in range(1,7):
-    display_cols += [f"{rr}R WR",f"{rr}R PnL"]
+report = pd.concat([report, pd.DataFrame([month_row])], ignore_index=True)
 
 print("\n============================================================")
 print("DATA AVAILABLE THROUGH:")
 print(latest_market_time)
 print("============================================================")
+print(report.to_string(index=False, float_format=lambda x: f"{x:.2f}"))
 
-print(
-    daily[display_cols]
-    .round(2)
-    .to_string(index=False)
-)
+tr.to_csv(f"data/reports/{month_start.strftime('%Y-%m')}_trades.csv", index=False)
+report.to_csv(f"data/reports/{month_start.strftime('%Y-%m')}_daily_report.csv", index=False)
 
 print("\nSaved:")
-print(trade_path)
-print(daily_path)
+print(f"data/reports/{month_start.strftime('%Y-%m')}_trades.csv")
+print(f"data/reports/{month_start.strftime('%Y-%m')}_daily_report.csv")
 
 print("\nNOTE:")
 print("OPEN = outcome not yet resolved in available market data.")
