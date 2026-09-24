@@ -839,18 +839,6 @@ for _, c in cand.iterrows():
     if risk <= 0:
         continue
 
-    # Temporary full forward audit: every candidate that survives the
-    # complete frozen Option 2A selection pipeline must appear here.
-    if c.time_ny.date() > max(ref["candidate_time_et"].dt.date):
-        print(
-            "FORWARD FINAL |", c.time_ny, "|", c.session, "|", c.direction,
-            "| V15 slot", slot_num,
-            "| signal", signal,
-            "| entry", entry,
-            "| stop", stop,
-            "| risk", risk
-        )
-
     outcomes = {}
 
     for rr in range(1,7):
