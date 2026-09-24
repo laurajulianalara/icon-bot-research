@@ -804,7 +804,14 @@ for _, c in cand.iterrows():
             "| score", round(float(v15_score), 6),
             "| slot", slot_num,
             "| cap", "PASS" if slot_num <= 6 else "BLOCK",
-            "| V27", "PASS" if v27_pass else "FAIL"
+            "| V27", "PASS" if v27_pass else "FAIL",
+            "| next_extreme", c.next_same_extreme_time,
+            "| planned_signal", one.iloc[i+3].time_ny,
+            "| cand_ticker", c.ticker,
+            "| signal_ticker", one.iloc[i+3].ticker,
+            "| planned_entry", float(one.iloc[i+3].open),
+            "| extreme", float(c.extreme),
+            "| planned_risk", ((float(one.iloc[i+3].open)-(float(c.extreme)-.25)) if c.direction=="LONG" else ((float(c.extreme)+.25)-float(one.iloc[i+3].open)))
         )
 
     if slot_num > 6:
