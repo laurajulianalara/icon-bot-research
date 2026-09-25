@@ -12,7 +12,8 @@ ROOT=Path(__file__).resolve().parents[1]
 TZ="America/New_York"
 ONE=ROOT/"data/mnq_continuous_1m.parquet"
 CAND=ROOT/"data/reversal_candidates.parquet"
-REPORT=ROOT/"data/icon_month_live_report.csv"
+# The permanent reporter writes its frozen current-month trade list here.
+REPORT=ROOT/"data/reports/2026-09_trades.csv"
 DELAYS=[0,1,2,3]
 
 def norm(s):
@@ -30,12 +31,13 @@ raw=raw[(raw.time_ny>=pd.Timestamp("2026-09-01",tz=TZ))&(raw.time_ny<pd.Timestam
 raw=raw.sort_values("time_ny").drop_duplicates(["time_ny","session","direction"]).reset_index(drop=True)
 raw["next_same_extreme_time"]=raw.groupby(["session_id","direction"],sort=False).time_ny.shift(-1)
 
-# Frozen benchmark: reporter output is authoritative. Detect its time/direction columns robustly.
-if not REPORT.exists(): raise SystemExit(f"Missing frozen report: {REPORT}")
+# Frozen benchmark from the permanent reporter's September trade export.
+if not REPORT.exists():
+ raise SystemExit(f"Missing frozen September trade export: {REPORT}\nRun: python src/icon_month_live_report.py")
 rep=pd.read_csv(REPORT)
-tc=next((c for c in ["candidate_time_et","candidate_time","time_ny","candidate_time_ny"] if c in rep.columns),None)
+tc=next((c for c in ["candidate_time","candidate_time_et","time_ny","candidate_time_ny"] if c in rep.columns),None)
 dc=next((c for c in ["direction","side"] if c in rep.columns),None)
-if tc is None or dc is None: raise SystemExit("Cannot identify benchmark candidate-time/direction columns in icon_month_live_report.csv")
+if tc is None or dc is None: raise SystemExit("Cannot identify benchmark candidate-time/direction columns in 2026-09_trades.csv")
 rep["_ct"]=norm(rep[tc]); rep["_dir"]=rep[dc].astype(str).str.upper()
 rep=rep[(rep._ct>=pd.Timestamp("2026-09-01",tz=TZ))&(rep._ct<pd.Timestamp("2026-10-01",tz=TZ))]
 bench=set(zip(rep._ct,rep._dir))
@@ -75,8 +77,6 @@ for _,c in raw.iterrows():
  rows.append(r)
 d=pd.DataFrame(rows)
 
-# Restrict "extras" metric to candidates that historical supersession removes at/by normal signal.
-# This isolates the exact mechanism under study instead of pretending V7-only rows are final live trades.
 d["historical_supersession_reject"]=d.next_extreme.notna()&(d.next_extreme<=d.normal_time)
 sup=d[d.historical_supersession_reject].copy()
 print("V7-eligible September candidates inspected:",len(d))
@@ -92,7 +92,6 @@ for delay in DELAYS:
  print(f"  Benchmark preserved: {kept_b}/{total_b}")
  print(f"  Historical-supersession candidates rejected causally: {rejected_sup}/{total_sup}")
  print(f"  Benchmark abs entry-open drift: median={dr.median() if len(dr) else np.nan:.2f} pts | max={dr.max() if len(dr) else np.nan:.2f} pts")
-# Known five confirmed extras.
 known={(pd.Timestamp("2026-09-01 02:27",tz=TZ),"LONG"),(pd.Timestamp("2026-09-01 03:36",tz=TZ),"LONG"),
 (pd.Timestamp("2026-09-01 03:57",tz=TZ),"LONG"),(pd.Timestamp("2026-09-02 02:39",tz=TZ),"SHORT"),
 (pd.Timestamp("2026-09-02 09:39",tz=TZ),"SHORT")}
