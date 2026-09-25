@@ -45,7 +45,7 @@ three=z.resample("3min",label="left",closed="left").agg(
     open=("open","first"),high=("high","max"),low=("low","min"),close=("close","last"),
     ticker=("ticker","last"),n=("close","count"))
 three=three[(three.n==3)&three.open.notna()].reset_index()
-three["session"]=[live.sess(t) for t in three.time_ny]
+three["session"]=three.time_ny.apply(live.session_name)
 three=three[three.session.notna()].copy()
 three["date"]=three.time_ny.dt.date
 
