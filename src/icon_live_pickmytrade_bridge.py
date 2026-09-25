@@ -35,7 +35,7 @@ WEBHOOK_URL = os.getenv("PICKMYTRADE_WEBHOOK_URL")
 TOKEN = os.getenv("PICKMYTRADE_TOKEN")
 # Deliberately invalid by default. Never put a funded account id in source code.
 ACCOUNT_ID = "ICON_ALERT_TEST_INVALID"
-POLL_SECONDS = int(os.getenv("PICKMYTRADE_POLL_SECONDS", "20"))
+POLL_SECONDS = float(os.getenv("PICKMYTRADE_POLL_SECONDS", "1"))
 
 if not WEBHOOK_URL:
     raise ValueError("PICKMYTRADE_WEBHOOK_URL was not found in .env")
@@ -198,6 +198,34 @@ def process_new_live_trades():
     return sent
 
 
+def baseline_existing_today():
+    """Mark trades already present at startup as seen so they are never replayed."""
+    run_reporter()
+
+    now = datetime.now(TZ)
+    report_path = Path(f"data/reports/{now:%Y-%m}_trades.csv")
+    if not report_path.exists():
+        return 0
+
+    trades = pd.read_csv(report_path)
+    if trades.empty or "entry_time" not in trades.columns:
+        return 0
+
+    trades["entry_time"] = pd.to_datetime(trades["entry_time"], errors="coerce")
+    trades = trades[trades["entry_time"].notna()].copy()
+    trades = trades[trades["entry_time"].dt.date == now.date()].copy()
+
+    state = load_state()
+    seen = set(state.get("seen", []))
+    before = len(seen)
+
+    for _, row in trades.iterrows():
+        seen.add(trade_key(row))
+
+    save_state(seen)
+    return len(seen) - before
+
+
 def main():
     print("=" * 68)
     print("THE ICON — LIVE PICKMYTRADE ALERT PARITY")
@@ -205,7 +233,9 @@ def main():
     print("Mode: LIVE trades only")
     print("Destination account: intentionally non-executable test id")
     print("=" * 68)
-    print(f"Polling every {POLL_SECONDS}s. Ctrl+C to stop.")
+    print(f"Polling every {POLL_SECONDS:g}s. Ctrl+C to stop.")
+    baseline_count = baseline_existing_today()
+    print(f"Startup baseline: {baseline_count} existing trade(s) ignored.")
 
     while True:
         try:
