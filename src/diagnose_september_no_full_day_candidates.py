@@ -30,6 +30,14 @@ def et(s):
     x=pd.to_datetime(s)
     return x.dt.tz_localize(live.TZ) if x.dt.tz is None else x.dt.tz_convert(live.TZ)
 
+def tkey(x):
+    ts=pd.Timestamp(x)
+    if ts.tzinfo is None:
+        ts=ts.tz_localize(live.TZ)
+    else:
+        ts=ts.tz_convert(live.TZ)
+    return int(ts.tz_convert("UTC").value)
+
 proof=pd.read_csv(PROOF)
 proof["entry_time"]=et(proof.entry_time)
 proof["candidate_time"]=et(proof.candidate_time)
@@ -87,8 +95,6 @@ for _,x in bad.iterrows():
             partial_qual=(rh is not None and np.isfinite(live_partial_extreme) and live_partial_extreme>rh)
             complete_qual=(rh is not None and completed_extreme>rh)
 
-        # If the completed bar IS a new extreme, it should be in build_candidates;
-        # absence then points to a different provenance/state issue.
         if partial_qual and not complete_qual:
             reason="PARTIAL_BUCKET_LOOKED_EXTREME_BUT_COMPLETED_BUCKET_DID_NOT"
         elif complete_qual:
