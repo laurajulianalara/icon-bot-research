@@ -112,7 +112,7 @@ def build_candidates(one):
     c["next_same_extreme_time"]=c.groupby(["date","session","direction"]).time_ny.shift(-1)
     return c
 
-def evaluate(one):
+def evaluate(one, live_open=None):
     one=one.copy().sort_values("time_ny").reset_index(drop=True)
     pc=one.close.shift(1)
     one["atr1"]=pd.concat([one.high-one.low,(one.high-pc).abs(),(one.low-pc).abs()],axis=1).max(axis=1).rolling(20).mean()
@@ -145,25 +145,42 @@ def evaluate(one):
         sc=score(f)
         if not np.isfinite(sc) or sc<V15_THRESHOLD:continue
         if reclaim>=RTH and rxw>=WTH:continue
-        j=i+3; signal=one.iloc[j].time_ny
+        j=i+3
+        # Historical replay can read row j directly. Live execution reaches the
+        # entry boundary before that 1m bar is closed, so use the just-opened
+        # Massive bar's timestamp/open without leaking its future high/low/close.
+        if j < len(one):
+            signal=one.iloc[j].time_ny
+            entry_ticker=one.iloc[j].ticker
+            entry=float(one.iloc[j].open)
+        elif j == len(one) and live_open is not None:
+            signal=live_open["time_ny"]
+            entry_ticker=live_open["ticker"]
+            entry=float(live_open["open"])
+        else:
+            continue
         if pd.notna(c.next_same_extreme_time) and signal>=c.next_same_extreme_time:continue
-        if one.iloc[j].ticker!=c.ticker:continue
-        entry=float(one.iloc[j].open); stop=float(c.extreme)-.25 if c.direction=="LONG" else float(c.extreme)+.25
+        if entry_ticker!=c.ticker:continue
+        stop=float(c.extreme)-.25 if c.direction=="LONG" else float(c.extreme)+.25
         risk=entry-stop if c.direction=="LONG" else stop-entry
         if risk<=0:continue
         selected.append({"signal_id":f"{signal.isoformat()}|{c.session}|{c.direction}|{c.time_ny.isoformat()}",
                          "date_et":str(signal.date()),"candidate_time_et":c.time_ny.isoformat(),"entry_time_et":signal.isoformat(),
                          "session":c.session,"direction":c.direction,"ticker":c.ticker,"v15_score":sc,"entry":entry,"stop":stop,"risk_points":risk})
-    # Option 2B cap: first six FINAL valid entries, not earlier survivors.
-    out=[]
-    for x in sorted(selected,key=lambda q:q["entry_time_et"]):
-        if sum(y["date_et"]==x["date_et"] for y in out)<6:out.append(x)
-    return out
+    # Do NOT apply the daily cap statelessly here. In live mode the cap must
+    # persist across repeated evaluate() calls/restarts and count only signals
+    # that were actually emitted. main() enforces the Option 2B 6/day cap.
+    return sorted(selected,key=lambda q:q["entry_time_et"])
 
 def load_logged():
-    if not LOG_PATH.exists():return set()
-    try:return set(pd.read_csv(LOG_PATH).signal_id.astype(str))
-    except Exception:return set()
+    if not LOG_PATH.exists():return set(),{}
+    try:
+        q=pd.read_csv(LOG_PATH)
+        logged=set(q.signal_id.astype(str))
+        counts=q.groupby(q.date_et.astype(str)).size().astype(int).to_dict()
+        return logged,counts
+    except Exception:
+        return set(),{}
 
 def append_signal(x):
     LOG_PATH.parent.mkdir(parents=True,exist_ok=True)
@@ -176,7 +193,7 @@ def append_signal(x):
 async def main():
     key=os.getenv("MASSIVE_API_KEY")
     if not key:sys.exit("MASSIVE_API_KEY is not set.")
-    one=bootstrap(key); logged=load_logged()
+    one=bootstrap(key); logged,daily_emitted=load_logged()
     print("="*68);print("THE ICON — OPTION 2B SHADOW LIVE");print("="*68)
     print("Contract:",SYMBOL);print("Bootstrapped closed 1m bars:",len(one));print("Orders: DISABLED")
     print("Signal log:",LOG_PATH);print("Waiting for live closed bars...\n")
@@ -199,11 +216,15 @@ async def main():
                 if pending is not None and row["time_ny"]>pending["time_ny"]:
                     one=pd.concat([one,pd.DataFrame([pending])],ignore_index=True).drop_duplicates(["time_ny","ticker"],keep="last").sort_values("time_ny").reset_index(drop=True)
                     print(f"CLOSED 1M | {pending['time_ny'].strftime('%Y-%m-%d %H:%M ET')} | O {pending['open']} H {pending['high']} L {pending['low']} C {pending['close']}",flush=True)
-                    for x in evaluate(one):
+                    for x in evaluate(one, live_open=row):
                         # Never retro-log bootstrap history. A live signal is emitted only at the
                         # just-opened minute proving its entry boundary has arrived prospectively.
                         if x["signal_id"] not in logged and pd.Timestamp(x["entry_time_et"])==row["time_ny"]:
+                            day=x["date_et"]
+                            if daily_emitted.get(day,0)>=6:
+                                continue
                             append_signal(x);logged.add(x["signal_id"])
+                            daily_emitted[day]=daily_emitted.get(day,0)+1
                             print("\n"+"!"*68);print("FINAL OPTION 2B SHADOW TRADE — LOGGED BEFORE OUTCOME")
                             print(f"{x['entry_time_et']} | {x['session']} | {x['direction']} {x['ticker']}")
                             print(f"Entry {x['entry']} | Stop {x['stop']} | Risk {x['risk_points']} | V15 {x['v15_score']:.6f}")
