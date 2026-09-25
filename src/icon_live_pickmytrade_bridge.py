@@ -34,7 +34,7 @@ load_dotenv(".env")
 WEBHOOK_URL = os.getenv("PICKMYTRADE_WEBHOOK_URL")
 TOKEN = os.getenv("PICKMYTRADE_TOKEN")
 # Deliberately invalid by default. Never put a funded account id in source code.
-ACCOUNT_ID = os.getenv("PICKMYTRADE_TEST_ACCOUNT_ID", "ICON_ALERT_TEST_INVALID")
+ACCOUNT_ID = "ICON_ALERT_TEST_INVALID"
 POLL_SECONDS = int(os.getenv("PICKMYTRADE_POLL_SECONDS", "20"))
 
 if not WEBHOOK_URL:
