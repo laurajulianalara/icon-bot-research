@@ -117,3 +117,48 @@ if not any(pd.Timestamp(x["candidate_time_et"])==T and pd.Timestamp(x["entry_tim
     print("04:42 -> 04:45 NOT EMITTED")
 
 print("\nREAD-ONLY: no strategy thresholds, reports, or market data changed.")
+
+
+# ------------------------------------------------------------------
+# E. POST-FILTER DROP TRACE
+# Reproduce evaluate() gates after V27 and print exactly where target dies.
+# ------------------------------------------------------------------
+print("\n"+"="*88);print("E) POST-FILTER DROP TRACE — WHY 04:42 DOES NOT APPEND");print("="*88)
+one=causal_closed.copy().sort_values("time_ny").reset_index(drop=True)
+cand=live.build_candidates(one)
+x=cand[(cand.time_ny==T)&(cand.session=="LONDON")&(cand.direction=="SHORT")]
+if x.empty:
+    print("DROP: target candidate is absent from build_candidates(causal_closed)")
+else:
+    cc=x.iloc[0]
+    idx=pd.Series(one.index,index=one.time_ny).to_dict()
+    i=idx.get(cc.time_ny)
+    print("candidate present:",cc.time_ny)
+    print("i =",i,"len(one) =",len(one),"i+3 =",None if i is None else i+3)
+    if i is None:
+        print("DROP: candidate timestamp has no matching 1m row")
+    else:
+        print("evaluate pre-gate i+3>=len(one):",i+3>=len(one))
+        if i+3>=len(one):
+            print(">>> DROP FOUND: evaluate() exits BEFORE it reaches the live_open fallback.")
+            print("Current code has: if i is None or i<20 or i+3>=len(one): continue")
+            print("But at a true live entry boundary, i+3 == len(one) is EXPECTED and legal when live_open exists.")
+        else:
+            j=i+3
+            print("j row exists historically:",one.iloc[j].time_ny)
+        j=i+3
+        print("live_open timestamp:",ENTRY)
+        print("Would live_open branch be legal?",j==len(one))
+        print("next_same_extreme_time:",cc.next_same_extreme_time)
+        if j==len(one):
+            signal=ENTRY
+            print("supersession would reject?",bool(pd.notna(cc.next_same_extreme_time) and signal>=cc.next_same_extreme_time))
+            print("ticker matches?",bool(op.iloc[0].ticker==cc.ticker) if not op.empty else "NO OPEN ROW")
+            entry=float(op.iloc[0].open) if not op.empty else np.nan
+            stop=float(cc.extreme)+.25
+            risk=stop-entry
+            print("entry",entry,"stop",stop,"risk",risk,"risk>0",risk>0)
+            if risk>0:
+                print(">>> If the premature i+3>=len(one) gate is removed/adjusted, this candidate reaches append conditions.")
+
+print("\nDIAGNOSTIC ONLY — live strategy file was NOT changed.")
