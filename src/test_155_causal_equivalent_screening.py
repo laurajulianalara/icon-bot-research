@@ -25,9 +25,37 @@ def et(s):
     x=pd.to_datetime(s,errors="coerce")
     return x.dt.tz_localize(live.TZ) if x.dt.tz is None else x.dt.tz_convert(live.TZ)
 
-one=pd.read_parquet(live.HIST)[live.NEED].copy()
-one["time_ny"]=et(one.time_ny)
-one=one.sort_values("time_ny").reset_index(drop=True)
+# Assemble September from the same local pieces used by the month reporter:
+# continuous history + saved daily September cache files. No API calls here.
+hist=pd.read_parquet(live.HIST)[live.NEED].copy()
+hist["time_ny"]=et(hist.time_ny)
+pieces=[hist[(hist.time_ny.dt.year==2026)&(hist.time_ny.dt.month==9)].copy()]
+cache_files=[]
+for fp in sorted(Path("data").glob("mnq_sep*_2026*_1m.parquet")):
+    try:
+        x=pd.read_parquet(fp)
+        if not set(live.NEED).issubset(x.columns):
+            continue
+        x=x[live.NEED].copy()
+        x["time_ny"]=et(x.time_ny)
+        x=x[(x.time_ny.dt.year==2026)&(x.time_ny.dt.month==9)]
+        if not x.empty:
+            pieces.append(x)
+            cache_files.append(fp.name)
+    except Exception as e:
+        print("CACHE READ ERROR:",fp.name,e)
+
+one=(pd.concat(pieces,ignore_index=True)
+     .drop_duplicates(["time_ny","ticker"],keep="last")
+     .sort_values("time_ny").reset_index(drop=True))
+print("Assembled September coverage:",one.time_ny.min(),"->",one.time_ny.max(),
+      "| candles:",len(one),"| saved caches:",len(cache_files))
+if cache_files:
+    print("Cache files used:")
+    for f in cache_files: print(" -",f)
+else:
+    print("WARNING: no saved September cache files matched data/mnq_sep*_2026*_1m.parquet")
+
 cand=live.build_candidates(one)
 cmap={(str(r.time_ny),str(r.session),str(r.direction)):r for _,r in cand.iterrows()}
 omap={str(r.time_ny):r for _,r in one.iterrows()}
@@ -38,7 +66,6 @@ bad["entry_time"]=et(bad.entry_time); bad["candidate_time"]=et(bad.candidate_tim
 bad["kind"]="SUPERSESSION_EXTRA"
 
 good=pd.read_csv(GOOD)
-# tolerate reporter column naming
 entry_col="entry_time_et" if "entry_time_et" in good.columns else "entry_time"
 cand_col="candidate_time_et" if "candidate_time_et" in good.columns else "candidate_time"
 good["entry_time"]=et(good[entry_col]); good["candidate_time"]=et(good[cand_col])
@@ -69,6 +96,17 @@ print("THE ICON — CAUSAL-EQUIVALENT SCREENING TRADE-OFF")
 print("="*108)
 print(f"Supersession extras available: {len(B)} / 155")
 print(f"Valid corrected September trades available: {len(G)} / {len(good)}")
+
+if len(G) != len(good):
+    matched=set(zip(G.entry_time.astype(str),G.candidate_time.astype(str),G.session.astype(str),G.direction.astype(str)))
+    missing=[]
+    for _,r in good.iterrows():
+        k=(str(r.entry_time),str(r.candidate_time),str(r.session),str(r.direction))
+        if k not in matched:
+            missing.append(k)
+    print("\nMISSING VALID TRADES:")
+    for k in missing: print(" ",k)
+
 print("\nRULE: entry OPEN already beyond prior session extreme")
 br=int(B.open_beyond_prior.sum()); gr=int(G.open_beyond_prior.sum())
 print(f"Rejects extras: {br}/{len(B)} ({100*br/max(len(B),1):.1f}%)")
