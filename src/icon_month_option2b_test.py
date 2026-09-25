@@ -499,9 +499,10 @@ if Path(V11_PATH).exists():
     hist_ref = ref[ref.score >= score_threshold].copy()
     hist_ref["date_et"] = hist_ref.candidate_time_et.dt.date
     hist_ref = hist_ref.sort_values("candidate_time_et").reset_index(drop=True)
-    hist_ref["trade_num_day"] = hist_ref.groupby("date_et").cumcount()+1
-    hist_ref = hist_ref[hist_ref.trade_num_day <= 6].copy()
 
+    # OPTION 2B: V15 is eligibility only. Do NOT apply the 6/day cap here.
+    # The 6/day cap belongs after V27 + canonical validity, where
+    # final_trades_by_day is incremented below.
     v15_allowed = set(
         zip(
             hist_ref.candidate_time_et.astype(str),
