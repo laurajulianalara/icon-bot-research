@@ -121,7 +121,7 @@ def evaluate(one, live_open=None):
     idx=pd.Series(one.index,index=one.time_ny).to_dict(); selected=[]
     for _,c in cand.iterrows():
         i=idx.get(c.time_ny)
-        if i is None or i<20 or i+3>=len(one):continue
+        if i is None or i<20 or i+3>len(one) or (i+3==len(one) and live_open is None):continue
         a=float(one.iloc[i].atr1)
         if not np.isfinite(a) or a<=0:continue
         sg=1 if c.direction=="LONG" else -1; vals={}
