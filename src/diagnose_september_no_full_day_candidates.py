@@ -54,21 +54,21 @@ pre={}
 for (day,sess),g in three.groupby(["date","session"],sort=False):
     rh=None; rl=None
     for _,r in g.sort_values("time_ny").iterrows():
-        pre[(str(r.time_ny),sess)]=(rh,rl)
+        pre[(tkey(r.time_ny),sess)]=(rh,rl)
         rh=float(r.high) if rh is None else max(rh,float(r.high))
         rl=float(r.low) if rl is None else min(rl,float(r.low))
 
-tmap={(str(r.time_ny),r.session):r for _,r in three.iterrows()}
+tmap={(tkey(r.time_ny),r.session):r for _,r in three.iterrows()}
 
 # Reconstruct what was visible exactly at candidate timestamp: the bucket has
 # only its first 1m bar finalized at that instant. Compare that partial state
 # with the eventual completed 3m H/L.
-one_map={str(r.time_ny):r for _,r in one.iterrows()}
+one_map={tkey(r.time_ny):r for _,r in one.iterrows()}
 rows=[]
 for _,x in bad.iterrows():
-    key=(str(x.candidate_time),x.session)
+    key=(tkey(x.candidate_time),x.session)
     bar=tmap.get(key)
-    first=one_map.get(str(x.candidate_time))
+    first=one_map.get(tkey(x.candidate_time))
     rh,rl=pre.get(key,(None,None))
     reason="UNRESOLVED"
     live_partial_extreme=np.nan; completed_extreme=np.nan
