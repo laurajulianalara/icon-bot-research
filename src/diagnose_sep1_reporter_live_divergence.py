@@ -129,7 +129,11 @@ for t in bounds:
         else:
             x_candidate=x_candidate.tz_convert(TZ)
         if x_candidate.date()<=max_ref_date:
-            if (str(x_candidate),str(x["direction"])) not in allowed:
+            # Normalize to the same pandas timestamp-string representation used
+            # when the reporter's frozen membership set was constructed.
+            # isoformat() uses "T"; astype(str)/str(Timestamp) uses a space.
+            membership_key=(str(x_candidate),str(x["direction"]))
+            if membership_key not in allowed:
                 continue
         if count>=6: continue
         count+=1; live_rows.append(x)
