@@ -32,6 +32,14 @@ REF_PATH="data/icon_v15_pine_reference.json"
 LOG_PATH=Path("data/live/option2b_shadow_signals.csv")
 STATE_PATH=Path("data/live/option2b_shadow_state.json")
 NEED=["time_ny","ticker","open","high","low","close","volume"]
+NUMERIC=["open","high","low","close","volume"]
+
+def _numericize(df):
+    df=df.copy()
+    for col in NUMERIC:
+        if col in df.columns:
+            df[col]=pd.to_numeric(df[col],errors="coerce")
+    return df
 
 def session_name(ts):
     m=ts.hour*60+ts.minute
@@ -75,22 +83,23 @@ def fetch_today(api_key):
         t=pd.to_datetime(ns,unit="ns",utc=True).tz_convert(TZ)
         out.append({"time_ny":t,"ticker":SYMBOL,"open":x.get("open"),"high":x.get("high"),
                     "low":x.get("low"),"close":x.get("close"),"volume":x.get("volume",0)})
-    return pd.DataFrame(out,columns=NEED)
+    return _numericize(pd.DataFrame(out,columns=NEED))
 
 def bootstrap(api_key):
     hist=pd.read_parquet(HIST)[NEED].copy(); hist["time_ny"]=pd.to_datetime(hist.time_ny)
     if hist.time_ny.dt.tz is None: hist["time_ny"]=hist.time_ny.dt.tz_localize(TZ)
     else: hist["time_ny"]=hist.time_ny.dt.tz_convert(TZ)
+    hist=_numericize(hist)
     today=fetch_today(api_key)
     start=pd.Timestamp(datetime.now(ET).date(),tz=TZ)-pd.Timedelta(days=3)
     h=hist[hist.time_ny>=start].tail(5000)
     x=pd.concat([h,today],ignore_index=True).drop_duplicates(["time_ny","ticker"],keep="last").sort_values("time_ny")
-    return x.reset_index(drop=True)
+    return _numericize(x).reset_index(drop=True)
 
 def build_candidates(one):
+    one=_numericize(one)
     z=one.set_index("time_ny")
     three=z.resample("3min",label="left",closed="left").agg(ticker=("ticker","last"),open=("open","first"),high=("high","max"),low=("low","min"),close=("close","last"),volume=("volume","sum"),n=("close","count")).reset_index()
-    # A live candidate is legal only when all 3 constituent 1m bars exist.
     three=three[(three.n==3)&three.open.notna()].copy()
     pc=three.close.shift(1)
     three["atr_20"]=pd.concat([three.high-three.low,(three.high-pc).abs(),(three.low-pc).abs()],axis=1).max(axis=1).rolling(20).mean()
@@ -113,7 +122,12 @@ def build_candidates(one):
     return c
 
 def evaluate(one, live_open=None):
-    one=one.copy().sort_values("time_ny").reset_index(drop=True)
+    one=_numericize(one).sort_values("time_ny").reset_index(drop=True)
+    if live_open is not None:
+        live_open=dict(live_open)
+        for col in NUMERIC:
+            if col in live_open:
+                live_open[col]=pd.to_numeric(live_open[col],errors="coerce")
     pc=one.close.shift(1)
     one["atr1"]=pd.concat([one.high-one.low,(one.high-pc).abs(),(one.low-pc).abs()],axis=1).max(axis=1).rolling(20).mean()
     cand=build_candidates(one)
@@ -146,9 +160,6 @@ def evaluate(one, live_open=None):
         if not np.isfinite(sc) or sc<V15_THRESHOLD:continue
         if reclaim>=RTH and rxw>=WTH:continue
         j=i+3
-        # Historical replay can read row j directly. Live execution reaches the
-        # entry boundary before that 1m bar is closed, so use the just-opened
-        # Massive bar's timestamp/open without leaking its future high/low/close.
         if j < len(one):
             signal=one.iloc[j].time_ny
             entry_ticker=one.iloc[j].ticker
@@ -167,9 +178,6 @@ def evaluate(one, live_open=None):
         selected.append({"signal_id":f"{signal.isoformat()}|{c.session}|{c.direction}|{c.time_ny.isoformat()}",
                          "date_et":str(signal.date()),"candidate_time_et":c.time_ny.isoformat(),"entry_time_et":signal.isoformat(),
                          "session":c.session,"direction":c.direction,"ticker":c.ticker,"v15_score":sc,"entry":entry,"stop":stop,"risk_points":risk})
-    # Do NOT apply the daily cap statelessly here. In live mode the cap must
-    # persist across repeated evaluate() calls/restarts and count only signals
-    # that were actually emitted. main() enforces the Option 2B 6/day cap.
     return sorted(selected,key=lambda q:q["entry_time_et"])
 
 def load_logged():
@@ -213,12 +221,13 @@ async def main():
                 if ms is None:continue
                 t=datetime.fromtimestamp(float(ms)/1000,tz=UTC).astimezone(ET)
                 row={"time_ny":pd.Timestamp(t),"ticker":SYMBOL,"open":e.get("o",e.get("open")),"high":e.get("h",e.get("high")),"low":e.get("l",e.get("low")),"close":e.get("c",e.get("close")),"volume":e.get("v",e.get("volume",0))}
+                for col in NUMERIC:
+                    row[col]=pd.to_numeric(row[col],errors="coerce")
                 if pending is not None and row["time_ny"]>pending["time_ny"]:
                     one=pd.concat([one,pd.DataFrame([pending])],ignore_index=True).drop_duplicates(["time_ny","ticker"],keep="last").sort_values("time_ny").reset_index(drop=True)
+                    one=_numericize(one)
                     print(f"CLOSED 1M | {pending['time_ny'].strftime('%Y-%m-%d %H:%M ET')} | O {pending['open']} H {pending['high']} L {pending['low']} C {pending['close']}",flush=True)
                     for x in evaluate(one, live_open=row):
-                        # Never retro-log bootstrap history. A live signal is emitted only at the
-                        # just-opened minute proving its entry boundary has arrived prospectively.
                         if x["signal_id"] not in logged and pd.Timestamp(x["entry_time_et"])==row["time_ny"]:
                             day=x["date_et"]
                             if daily_emitted.get(day,0)>=6:
