@@ -121,6 +121,16 @@ for t in bounds:
     p=int(pos[-1]); closed=one.loc[:p-1,NEED].tail(6500).copy(); op=one.loc[p,NEED].to_dict()
     for x in live.evaluate(closed,live_open=op):
         if pd.Timestamp(x["entry_time_et"])!=t: continue
+        # PARITY-TEST ONLY: mirror the reporter's frozen historical V15
+        # membership before the 6/day cap. Forward/live dates are untouched.
+        x_candidate=pd.Timestamp(x["candidate_time_et"])
+        if x_candidate.tzinfo is None:
+            x_candidate=x_candidate.tz_localize(TZ)
+        else:
+            x_candidate=x_candidate.tz_convert(TZ)
+        if x_candidate.date()<=max_ref_date:
+            if (str(x_candidate),str(x["direction"])) not in allowed:
+                continue
         if count>=6: continue
         count+=1; live_rows.append(x)
 
@@ -143,7 +153,7 @@ interesting=trace[(trace.live_emitted)|(trace.benchmark_final)|(trace.reporter==
 print("="*112)
 print("THE ICON — SEP 1 REPORTER vs CAUSAL/LIVE DIAGNOSTIC")
 print("="*112)
-print("READ-ONLY. No strategy/filter/threshold/data/execution changes.")
+print("READ-ONLY. No strategy/filter/threshold/data/execution changes.")\nprint("TEST MODE: historical V15 membership mirrored before the 6/day cap.")
 print("Reporter frozen V15 allowed set:",len(allowed),"| historical reference through:",max_ref_date)
 print("\nKEY: benchmark_final = in frozen 73-trade report; live_emitted = causal engine actually emitted")
 print("\n"+interesting[["candidate","session","dir","reporter","benchmark_final","live_emitted"]].to_string(index=False))
