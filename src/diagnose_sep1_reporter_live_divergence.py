@@ -25,6 +25,14 @@ def et(s):
     x=pd.to_datetime(s)
     return x.dt.tz_localize(TZ) if x.dt.tz is None else x.dt.tz_convert(TZ)
 
+def norm_ts(x):
+    x=pd.Timestamp(x)
+    if x.tzinfo is None:
+        x=x.tz_localize(TZ)
+    else:
+        x=x.tz_convert(TZ)
+    return x.isoformat()
+
 # Same cached source assembly used by the parity audit.
 frames=[]
 h=pd.read_parquet(live.HIST)[NEED].copy(); h["time_ny"]=et(h.time_ny); frames.append(h)
@@ -59,7 +67,7 @@ hist_ref["date_et"]=hist_ref.candidate_time_et.dt.date
 hist_ref=hist_ref.sort_values("candidate_time_et").reset_index(drop=True)
 hist_ref["trade_num_day"]=hist_ref.groupby("date_et").cumcount()+1
 hist_ref=hist_ref[hist_ref.trade_num_day<=6]
-allowed=set(zip(hist_ref.candidate_time_et.astype(str),hist_ref.direction.astype(str)))
+allowed=set((norm_ts(t),str(d)) for t,d in zip(hist_ref.candidate_time_et,hist_ref.direction))
 max_ref_date=ref.candidate_time_et.dt.date.max()
 
 # Full-data candidate list is the reporter view.
@@ -91,7 +99,7 @@ for _,c in cand.iterrows():
              else (float(c.extreme)-float(first2.iloc[-1].close))/a)
     if not(reclaim<=.90 and vals["m2_close_pos"]<=.80 and float(c.wick_percent)<=.60 and vals["m2_move_atr"]<=.15 and vals["m2_dir_bars5"]<=4):
         rows.append({**base,"reporter":"V8_FAIL"}); continue
-    key=(str(c.time_ny),str(c.direction))
+    key=(norm_ts(c.time_ny),str(c.direction))
     historical=c.time_ny.date()<=max_ref_date
     if historical and key not in allowed:
         rows.append({**base,"reporter":"V15_MEMBERSHIP_FAIL"}); continue
@@ -113,7 +121,10 @@ trace=pd.DataFrame(rows)
 
 # What causal/live would actually emit on Sep 1, boundary by boundary.
 sep=one[(one.time_ny>=DAY)&(one.time_ny<END)]
-bounds=[t for t in sep.time_ny if t.minute%3==0 and live.session_name(t) is not None]
+# IMPORTANT: entry may occur exactly at the session end (e.g. 05:00 for a
+# 04:57 London candidate). Therefore iterate every 3-minute boundary that
+# exists in the data, not only boundaries whose own timestamp is inside a session.
+bounds=[t for t in sep.time_ny if t.minute%3==0]
 live_rows=[]; count=0
 for t in bounds:
     pos=one.index[one.time_ny==t]
@@ -121,18 +132,13 @@ for t in bounds:
     p=int(pos[-1]); closed=one.loc[:p-1,NEED].tail(6500).copy(); op=one.loc[p,NEED].to_dict()
     for x in live.evaluate(closed,live_open=op):
         if pd.Timestamp(x["entry_time_et"])!=t: continue
-        # PARITY-TEST ONLY: mirror the reporter's frozen historical V15
-        # membership before the 6/day cap. Forward/live dates are untouched.
         x_candidate=pd.Timestamp(x["candidate_time_et"])
         if x_candidate.tzinfo is None:
             x_candidate=x_candidate.tz_localize(TZ)
         else:
             x_candidate=x_candidate.tz_convert(TZ)
         if x_candidate.date()<=max_ref_date:
-            # Normalize to the same pandas timestamp-string representation used
-            # when the reporter's frozen membership set was constructed.
-            # isoformat() uses "T"; astype(str)/str(Timestamp) uses a space.
-            membership_key=(str(x_candidate),str(x["direction"]))
+            membership_key=(norm_ts(x_candidate),str(x["direction"]))
             if membership_key not in allowed:
                 continue
         if count>=6: continue
@@ -141,17 +147,17 @@ for t in bounds:
 lv=pd.DataFrame(live_rows)
 live_keys=set()
 if not lv.empty:
-    live_keys=set(zip(pd.to_datetime(lv.candidate_time_et).astype(str),lv.direction.astype(str)))
+    live_keys=set((norm_ts(t),str(d)) for t,d in zip(pd.to_datetime(lv.candidate_time_et),lv.direction))
 
-trace["live_emitted"]=[(str(r.candidate),str(r.dir)) in live_keys for _,r in trace.iterrows()]
+trace["live_emitted"]=[(norm_ts(r.candidate),str(r.dir)) in live_keys for _,r in trace.iterrows()]
 
 # Frozen report finals for Sep 1.
 bench=set()
 if REPORT.exists():
     b=pd.read_csv(REPORT); b["candidate_time"]=et(b.candidate_time)
     b=b[(b.candidate_time>=DAY)&(b.candidate_time<END)]
-    bench=set(zip(b.candidate_time.astype(str),b.direction.astype(str)))
-trace["benchmark_final"]=[(str(r.candidate),str(r.dir)) in bench for _,r in trace.iterrows()]
+    bench=set((norm_ts(t),str(d)) for t,d in zip(b.candidate_time,b.direction))
+trace["benchmark_final"]=[(norm_ts(r.candidate),str(r.dir)) in bench for _,r in trace.iterrows()]
 
 interesting=trace[(trace.live_emitted)|(trace.benchmark_final)|(trace.reporter=="FINAL_PRECAP")].copy()
 print("="*112)
