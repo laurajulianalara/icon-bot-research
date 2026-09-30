@@ -73,22 +73,17 @@ one=(pd.concat([h,today],ignore_index=True)
      .sort_values("time_ny").reset_index(drop=True))
 
 boundaries=sorted(t for t in today.time_ny if t.minute%3==0)
-emitted={}; daily_count=0
 
-for t in boundaries:
-    pos=one.index[one.time_ny==t]
-    if len(pos)==0: continue
-    p=int(pos[-1])
-    closed=one.loc[:p-1,NEED].copy()
-    op=one.loc[p,NEED].to_dict()
-    for x in live.evaluate(closed,live_open=op):
-        xt=pd.Timestamp(x["entry_time_et"])
-        if xt!=t: continue
-        if daily_count>=6: continue
-        ct=pd.Timestamp(x["candidate_time_et"])
-        key=(xt,str(x["session"]),str(x["direction"]),ct)
-        if key in emitted: continue
-        emitted[key]=x; daily_count+=1
+# One evaluation only — no 460 repeated full-history evaluations.
+all_signals=live.evaluate(one)
+day_signals=sorted(
+    [x for x in all_signals if DAY <= pd.Timestamp(x["entry_time_et"]) < END],
+    key=lambda z:pd.Timestamp(z["entry_time_et"])
+)[:6]
+emitted={
+    (pd.Timestamp(x["entry_time_et"]),str(x["session"]),str(x["direction"]),pd.Timestamp(x["candidate_time_et"])):x
+    for x in day_signals
+}
 
 def bar_at(ts):
     q=one[one.time_ny==ts]
